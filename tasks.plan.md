@@ -25,7 +25,24 @@ Playable vertical slice running on the desktop: `npm run tauri:dev`.
 - Batting/bowling/over/commentary tabs, HTML scorecard export
 - 11 Rust tests green (determinism, scoring bands, full match flow, scorecard, trademark check)
 
-## G1 PLAYABLE SLICE ACHIEVED (2026-10-09)
+## UI REDESIGN TO MATCH THE ORIGINAL (2026-10-09)
+
+Rebuilt the frontend around the Cricket Coach 2014 design language, worked out from the
+original's own screenshots:
+
+- navy gradient top bar: clock + match title in gold + nation flag chips
+- left icon sidebar (news / team / domestic / search / rankings / records) + quick search
+- glossy, gradient-highlighted buttons; big blue pill "Continue" with arrow
+- green-field backdrop with crowd/stand band behind content
+- match view: stadium bowl with crowd speckle, boundary ad boards, mown stripes, 30-yard
+  circle, named fielder dots, batters with bat, bowler + ball in flight, floodlight pools
+- translucent commentary bars over the ground, bright green event line, partnership tag
+- bottom scorebar: TEAM score/overs then batter/bowler runs (balls)
+- Manhattan runs-per-over chart with wicket markers
+- conditions panel: run rate, last 10 overs, ball age, pitch-wear and spin meters
+- actions bar with «« / Fast Forward / »» / Save / Main Menu / Continue
+
+ (2026-10-09)
 
 `npm run tauri:dev` — a full career loop, not just single matches:
 

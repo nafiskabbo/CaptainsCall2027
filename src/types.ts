@@ -37,6 +37,7 @@ export interface Player {
   batting_style: string;
   bowling_style: string | null;
   skills: Skills;
+  potential: Skills;
   form: number;
   fitness: number;
   morale: number;
@@ -259,6 +260,7 @@ export interface TableRow {
   runs_for: number;
   runs_against: number;
   wickets_lost: number;
+  net_run_rate_x100: number;
 }
 
 export interface CareerState {

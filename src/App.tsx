@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "./tools/api";
 import type { AppInfo, CareerView, MatchSnapshot, World } from "./types";
+import AppShell, { type SidebarItem } from "./components/AppShell";
 import CareerScreen from "./screens/CareerScreen";
 import MatchScreen from "./screens/MatchScreen";
 import WorldScreen from "./screens/WorldScreen";
+import { seasonClock, seasonDate } from "./lib/date";
 
 type Screen = "setup" | "career" | "match";
 
@@ -24,24 +26,19 @@ export default function App() {
       .catch((e) => setError(String(e)));
   }, []);
 
-  if (error) {
+  if (error || !info || !world) {
     return (
       <main className="shell">
         <h1>Captain&apos;s Call 2027</h1>
-        <p className="error">
-          Failed to reach the Rust core: {error}
-          <br />
-          Run with <code>npm run tauri:dev</code> to load the engine.
-        </p>
-      </main>
-    );
-  }
-
-  if (!info || !world) {
-    return (
-      <main className="shell">
-        <h1>Captain&apos;s Call 2027</h1>
-        <p className="muted">Loading world database…</p>
+        {error ? (
+          <p className="error">
+            Failed to reach the Rust core: {error}
+            <br />
+            Run with <code>npm run tauri:dev</code>.
+          </p>
+        ) : (
+          <p className="muted">Loading world database…</p>
+        )}
       </main>
     );
   }
@@ -52,66 +49,204 @@ export default function App() {
     setScreen("career");
   };
 
+  if (screen === "setup") {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <div className="topbar__clock">
+            <b>09:00</b>
+            <span>Pre-season</span>
+          </div>
+          <div className="topbar__title">
+            <h1>Captain&apos;s Call 2027</h1>
+            <p>2D cricket management · tribute to Cricket Coach 2014</p>
+          </div>
+          <div className="topbar__flags">
+            <span className="flag flag--home">CC27</span>
+          </div>
+        </header>
+        <div className="content">
+          <div className="content__inner">
+            <WorldScreen world={world} onStartCareer={startCareer} />
+          </div>
+        </div>
+        <div className="actionbar">
+          <span className="actionbar__message">
+            {world.players.length} players · {world.teams.length} teams ·{" "}
+            {world.nations.length} nations · database {world.db_version}
+          </span>
+          <span className="muted">Pick a club to continue</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === "career" && career) {
+    const nation = world.nations.find((n) => n.id === career.state.nation_id);
+    const items: SidebarItem[] = [
+      { id: "news", label: "Club News", icon: "news", active: true },
+      { id: "team", label: nation?.name ?? "Team", icon: "team" },
+      { id: "dom", label: "Domestic", icon: "dom" },
+      { id: "search", label: "Search", icon: "search" },
+      { id: "rank", label: "Rankings", icon: "rank" },
+      { id: "records", label: "Records", icon: "records" },
+    ];
+
+    return (
+      <AppShell
+        clock={seasonClock(career.state.season_day)}
+        clockTitle={`${seasonDate(career.state.season_day)} · Day ${career.state.season_day}`}
+        title={career.state.player_team_name}
+        subtitle={career.state.name}
+        homeFlag={(nation?.short_name ?? "CC").slice(0, 3).toUpperCase()}
+        items={items}
+        quickSearch={
+          <>
+            <input type="text" placeholder="Search players, teams…" aria-label="Search" />
+          </>
+        }
+        actionBar={
+          <>
+            <button
+              className="btn"
+              onClick={() => api.advanceDay().then(setCareer)}
+              disabled={career.season_complete}
+            >
+              ««
+            </button>
+            <button
+              className="btn"
+              onClick={() => api.advanceDay().then(setCareer)}
+              disabled={career.season_complete}
+            >
+              Fast Forward
+            </button>
+            <button
+              className="btn"
+              onClick={() => api.advanceDay().then(setCareer)}
+              disabled={career.season_complete}
+            >
+              »»
+            </button>
+            <span className="actionbar__message">
+              {career.season_complete
+                ? "Season complete"
+                : `${world.competitions.find((c) => c.id === career.state.competition_id)?.name ?? "Competition"} · next match day ${
+                    career.state.fixtures.find((f) => f.id === career.next_fixture_id)?.day ?? "—"
+                  }`}
+            </span>
+            <button className="btn" onClick={() => api.saveCareer().then(() => undefined)}>
+              Save
+            </button>
+            <button className="btn btn--ghost" onClick={() => { setCareer(null); setScreen("setup"); }}>
+              Main Menu
+            </button>
+            <button className="btn btn--continue">
+              Continue
+              <span className="btn--continue__arrow">➜</span>
+            </button>
+          </>
+        }
+      >
+        <CareerScreen
+          world={world}
+          career={career}
+          onCareer={setCareer}
+          onPlay={(snap) => {
+            setSnapshot(snap);
+            setScreen("match");
+          }}
+        />
+      </AppShell>
+    );
+  }
+
+  if (screen === "match" && snapshot) {
+    const homeTeam = world.teams.find((t) => t.id === snapshot.home_team_id);
+    const awayTeam = world.teams.find((t) => t.id === snapshot.away_team_id);
+    const homeNation = world.nations.find((n) => n.id === homeTeam?.nation_id);
+    const awayNation = world.nations.find((n) => n.id === awayTeam?.nation_id);
+
+    return (
+      <AppShell
+        clock={`Day ${snapshot.clock.day}`}
+        clockTitle={
+          snapshot.format === "test"
+            ? `Day ${snapshot.clock.day} of 5`
+            : seasonClock(career?.state.season_day ?? 1)
+        }
+        title={`${homeTeam?.name ?? "Home"} vs ${awayTeam?.name ?? "Away"}`}
+        subtitle={`${snapshot.format === "odi50" ? "One Day" : snapshot.format === "t20" ? "Twenty20" : "Test"} match · ${
+          world.grounds.find((g) => g.id === snapshot.ground_id)?.name ?? ""
+        }`}
+        homeFlag={(homeNation?.short_name ?? "HM").slice(0, 3).toUpperCase()}
+        awayFlag={(awayNation?.short_name ?? "AW").slice(0, 3).toUpperCase()}
+        items={[
+          { id: "news", label: "Match", icon: "news", active: true },
+          { id: "score", label: "Scorecard", icon: "team" },
+          { id: "opts", label: "Options", icon: "options" },
+        ]}
+        actionBar={
+          <>
+            <button className="btn">Main Screen</button>
+            <button className="btn btn--ghost">Options</button>
+            <button
+              className="btn"
+              onClick={() => advanceQuick(snapshot, setSnapshot)}
+            >
+              Autoplay
+            </button>
+            <span className="actionbar__message">
+              {snapshot.result?.summary ??
+                (snapshot.innings[snapshot.current_innings]
+                  ? `${battingTeamName(world, snapshot)} ${snapshot.innings[snapshot.current_innings].runs}/${
+                      snapshot.innings[snapshot.current_innings].wickets
+                    }`
+                  : "Match in progress")}
+            </span>
+            <button
+              className="btn btn--continue"
+              onClick={() => {
+                api.getCareer().then(setCareer);
+                setScreen("career");
+              }}
+            >
+              Continue
+              <span className="btn--continue__arrow">➜</span>
+            </button>
+          </>
+        }
+      >
+        <MatchScreen
+          world={world}
+          snapshot={snapshot}
+          onSnapshot={setSnapshot}
+          onExit={() => {
+            api.getCareer().then(setCareer);
+            setScreen("career");
+          }}
+        />
+      </AppShell>
+    );
+  }
+
   return (
-    <div className="app">
-      <header className="topbar">
-        <div>
-          <h1>
-            Captain&apos;s Call <span>2027</span>
-          </h1>
-          <p className="topbar__sub">
-            2D cricket management sim · {info.phase} · db {world.db_version} · tribute to Cricket
-            Coach 2014
-          </p>
-        </div>
-        <div className="topbar__right">
-          <span className="pill">{world.players.length} players</span>
-          <span className="pill">{world.teams.length} teams</span>
-          <span className="pill">{world.nations.length} nations</span>
-          {career && <span className="pill">Day {career.state.season_day}</span>}
-        </div>
-      </header>
-
-      <main className="content">
-        {screen === "setup" && (
-          <WorldScreen world={world} onStartCareer={startCareer} />
-        )}
-
-        {screen === "career" && career && (
-          <CareerScreen
-            world={world}
-            career={career}
-            onCareer={setCareer}
-            onPlay={(snap) => {
-              setSnapshot(snap);
-              setScreen("match");
-            }}
-            onExit={() => {
-              setCareer(null);
-              setScreen("setup");
-            }}
-          />
-        )}
-
-        {screen === "match" && snapshot && (
-          <MatchScreen
-            world={world}
-            snapshot={snapshot}
-            onSnapshot={setSnapshot}
-            onExit={() => {
-              setSnapshot(null);
-              api.getCareer().then(setCareer);
-              setScreen("career");
-            }}
-          />
-        )}
-      </main>
-
-      <footer className="footer">
-        <span>
-          Fictional players, clubs and leagues — real-name packs are community mods only.
-        </span>
-      </footer>
-    </div>
+    <main className="shell">
+      <h1>Captain&apos;s Call 2027</h1>
+      <p className="muted">Nothing to show.</p>
+    </main>
   );
+}
+
+function battingTeamName(world: World, snapshot: MatchSnapshot): string {
+  const inn = snapshot.innings[snapshot.current_innings];
+  return world.teams.find((t) => t.id === inn?.batting_team_id)?.name ?? "";
+}
+
+function advanceQuick(
+  snapshot: MatchSnapshot,
+  setSnapshot: (s: MatchSnapshot) => void,
+) {
+  if (snapshot.phase === "Complete") return;
+  api.simMatch(100000).then(setSnapshot).catch(() => undefined);
 }

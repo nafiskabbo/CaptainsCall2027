@@ -1,54 +1,66 @@
+//! Overhead 2D match view: stadium bowl, boundary boards, named fielders.
+//! Mirrors the Cricket Coach 2014 2D view.
+
 import { useEffect, useMemo, useRef } from "react";
 import type { MatchSnapshot } from "../types";
 
 interface Props {
   snapshot: MatchSnapshot | null;
+  /** Fielder names keyed by player id (from the bowling side's XI). */
+  fielderNames: Record<number, string>;
+  /** Batting side's names, for the two batters at the crease. */
+  batterNames: Record<number, string>;
+  /** Show floodlights for day/night cricket. */
+  dayNight?: boolean;
 }
 
-interface Dot {
-  id: string;
+interface FielderDot {
+  id: number;
   angle: number;
+  orbit: number;
   speed: number;
-  dist: number;
 }
 
-const COLORS = {
-  night: "#0b1016",
-  day: "#1f7a3e",
-  pitch: "#c4a46e",
-  ring: "rgba(255,255,255,0.75)",
-  batter: "#f0b429",
-  bowler: "#e05263",
-  fielder: "#8ab4f8",
-};
+const INNINGS_BALLS = 6;
 
-export default function MatchView({ snapshot }: Props) {
+export default function MatchView({
+  snapshot,
+  fielderNames,
+  batterNames,
+  dayNight = true,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const frame = useRef(0);
+  const raf = useRef(0);
+  const t = useRef(0);
 
-  // Weather / lighting: day or night from the ground.
-  const night = useMemo(() => true, []);
+  const innings = snapshot?.innings[snapshot.current_innings] ?? null;
+  const seed = snapshot?.seed ?? 1;
 
-  // Animated ball dots (decorative, deterministic from the seed).
-  const dots = useMemo<Dot[]>(() => {
-    const seed = snapshot?.seed ?? 1;
-    const n = 22;
-    const out: Dot[] = [];
-    let s = seed >>> 0 || 1;
+  // Deterministic fielding positions: nine close/catching ring slots.
+  const fielders = useMemo<FielderDot[]>(() => {
+    let s = (seed ^ 0x51ed) >>> 0 || 1;
     const rand = () => {
-      s = (s * 1664525 + 1013904223) >>> 0;
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
       return s / 4294967296;
     };
-    for (let i = 0; i < n; i++) {
-      out.push({
-        id: `d${i}`,
-        angle: rand() * Math.PI * 2,
-        speed: 0.15 + rand() * 0.5,
-        dist: 0.25 + rand() * 0.55,
-      });
-    }
-    return out;
-  }, [snapshot?.seed]);
+    const slots = [
+      { angle: -Math.PI * 0.62, orbit: 0.44 }, // slip
+      { angle: -Math.PI * 0.5, orbit: 0.3 }, // keeper-ish
+      { angle: -Math.PI * 0.25, orbit: 0.52 }, // point
+      { angle: -Math.PI * 0.06, orbit: 0.34 }, // cover
+      { angle: Math.PI * 0.02, orbit: 0.58 }, // mid-off
+      { angle: Math.PI * 0.16, orbit: 0.62 }, // mid-on
+      { angle: Math.PI * 0.36, orbit: 0.5 }, // midwicket
+      { angle: Math.PI * 0.6, orbit: 0.4 }, // square leg
+      { angle: Math.PI * 0.86, orbit: 0.55 }, // fine leg
+    ];
+    return slots.map((slot, i) => ({
+      id: i,
+      angle: slot.angle + (rand() - 0.5) * 0.12,
+      orbit: slot.orbit,
+      speed: 0.02 + rand() * 0.05,
+    }));
+  }, [seed]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,143 +68,294 @@ export default function MatchView({ snapshot }: Props) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = canvas.clientWidth * 2;
-    canvas.height = canvas.clientHeight * 2;
-    ctx.scale(2, 2);
-
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    const cx = w / 2;
-    const cy = h / 2;
-    const r = Math.min(w, h) / 2 - 8;
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = canvas.clientWidth * dpr;
+      canvas.height = canvas.clientHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
 
     const draw = () => {
-      frame.current += 0.45;
-      const t = frame.current / 60;
+      t.current += 1 / 60;
+      const time = t.current;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      const cx = w / 2;
+      const cy = h / 2;
+      const R = Math.min(w, h) * 0.46;
 
-      // Ground.
       ctx.clearRect(0, 0, w, h);
-      const grad = ctx.createRadialGradient(cx, cy, r * 0.1, cx, cy, r);
-      if (night) {
-        grad.addColorStop(0, "#0f1a12");
-        grad.addColorStop(1, "#050a07");
+
+      // ---- night sky / stadium bowl ----
+      const sky = ctx.createRadialGradient(cx, cy * 0.4, R * 0.2, cx, cy, R * 2.2);
+      if (dayNight) {
+        sky.addColorStop(0, "#1d4a2e");
+        sky.addColorStop(0.55, "#0d2416");
+        sky.addColorStop(1, "#050d07");
       } else {
-        grad.addColorStop(0, "#26873f");
-        grad.addColorStop(1, "#14522a");
+        sky.addColorStop(0, "#2f7a42");
+        sky.addColorStop(0.6, "#14401f");
+        sky.addColorStop(1, "#08180d");
       }
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+
+      // ---- crowd ring ----
+      for (let ring = 0; ring < 3; ring++) {
+        const rr = R * (1.02 + ring * 0.13);
+        ctx.fillStyle = dayNight
+          ? `rgba(${26 - ring * 4}, ${38 - ring * 4}, ${58 - ring * 6}, 0.85)`
+          : `rgba(${40 - ring * 6}, ${52 - ring * 6}, ${72 - ring * 8}, 0.8)`;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rr, rr * 0.86, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // crowd speckle
+      let s = 12345;
+      const rnd = () => {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+      for (let i = 0; i < 900; i++) {
+        const a = rnd() * Math.PI * 2;
+        const rr = R * (1.0 + rnd() * 0.4);
+        const x = cx + Math.cos(a) * rr;
+        const y = cy + Math.sin(a) * rr * 0.86;
+        if (x < 0 || x > w || y < 0 || y > h) continue;
+        ctx.fillStyle = `rgba(${180 + rnd() * 60}, ${170 + rnd() * 60}, ${190 + rnd() * 60}, 0.5)`;
+        ctx.fillRect(x, y, 1.4, 1.4);
+      }
+
+      // ---- outfield ----
+      const grad = ctx.createRadialGradient(cx, cy, R * 0.12, cx, cy, R);
+      grad.addColorStop(0, "#2f8a44");
+      grad.addColorStop(0.7, "#1f6b32");
+      grad.addColorStop(1, "#155024");
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, r, r * 0.82, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, R, R * 0.86, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Boundary rope + 30-yard circle.
-      ctx.strokeStyle = COLORS.ring;
+      // mown stripes
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, R, R * 0.86, 0, 0, Math.PI * 2);
+      ctx.clip();
+      for (let i = -10; i <= 10; i++) {
+        if (i % 2 !== 0) continue;
+        ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
+        ctx.fillRect(cx - R + (i / 10) * R, cy - R, R / 20, R * 2);
+      }
+      ctx.restore();
+
+      // ---- 30-yard circle ----
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
       ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
       ctx.beginPath();
-      ctx.ellipse(cx, cy, r - 6, (r - 6) * 0.82, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([4, 5]);
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, r * 0.55, (r * 0.55) * 0.82, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, R * 0.62, R * 0.53, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Pitch strip.
-      ctx.fillStyle = COLORS.pitch;
+      // ---- boundary rope + advertising boards ----
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, r * 0.075, r * 0.3, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, R * 0.97, R * 0.83, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // ad boards around the rope
+      const ads = ["SPONSOR", "BOOK NOW", "INSURANCE", "AIRLINE", "BANK", "TYRES"];
+      ctx.font = "600 9px 'Segoe UI', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2;
+        const x = cx + Math.cos(a) * R * 0.99;
+        const y = cy + Math.sin(a) * R * 0.85;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(a + Math.PI / 2);
+        ctx.fillStyle = i % 2 === 0 ? "rgba(12, 30, 50, 0.9)" : "rgba(70, 20, 25, 0.9)";
+        ctx.fillRect(-R * 0.075, -6, R * 0.15, 12);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.62)";
+        ctx.fillText(ads[i % ads.length], 0, 1);
+        ctx.restore();
+      }
+
+      // ---- pitch ----
+      const pitchH = R * 0.42;
+      const pitchW = R * 0.085;
+      ctx.fillStyle = "#c2a471";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, pitchW, pitchH, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // worn patch
+      ctx.fillStyle = "rgba(150, 125, 85, 0.55)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + pitchH * 0.18, pitchW * 0.82, pitchH * 0.34, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Creases.
-      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      // creases
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
       ctx.lineWidth = 1;
-      for (const dy of [-0.2, 0.2]) {
+      for (const dy of [-pitchH * 0.3, pitchH * 0.3]) {
         ctx.beginPath();
-        ctx.moveTo(cx - r * 0.05, cy + dy * r);
-        ctx.lineTo(cx + r * 0.05, cy + dy * r);
+        ctx.moveTo(cx - pitchW * 0.62, cy + dy);
+        ctx.lineTo(cx + pitchW * 0.62, cy + dy);
         ctx.stroke();
       }
 
-      // Stumps.
-      ctx.strokeStyle = "#f4f7fa";
-      for (const dy of [-0.205, 0.205]) {
+      // stumps at both ends
+      for (const dy of [-pitchH * 0.31, pitchH * 0.31]) {
+        ctx.strokeStyle = "#f2f5f8";
+        ctx.lineWidth = 1.4;
+        for (const dx of [-2.2, 0, 2.2]) {
+          ctx.beginPath();
+          ctx.moveTo(cx + dx, cy + dy);
+          ctx.lineTo(cx + dx, cy + dy + (dy < 0 ? -7 : 7));
+          ctx.stroke();
+        }
+        // bails
         ctx.beginPath();
-        ctx.moveTo(cx - 1.5, cy + dy * r);
-        ctx.lineTo(cx - 1.5, cy + dy * r - 5);
-        ctx.moveTo(cx + 1.5, cy + dy * r);
-        ctx.lineTo(cx + 1.5, cy + dy * r - 5);
+        ctx.moveTo(cx - 2.2, cy + dy + (dy < 0 ? -8 : 8));
+        ctx.lineTo(cx + 2.2, cy + dy + (dy < 0 ? -8 : 8));
         ctx.stroke();
       }
 
-      // Fielders: deterministic orbit dots.
-      dots.forEach((d) => {
-        const a = d.angle + t * d.speed;
-        const rr = r * 0.35 + d.dist * r * 0.5;
+      // ---- fielders ----
+      ctx.font = "10px 'Segoe UI', Arial, sans-serif";
+      fielders.forEach((f, i) => {
+        const drift = Math.sin(time * f.speed * 6 + i) * 0.012;
+        const a = f.angle + drift;
+        const rr = R * (f.orbit + drift * 0.5);
         const x = cx + Math.cos(a) * rr * 1.05;
-        const y = cy + Math.sin(a) * rr * 0.78;
-        ctx.fillStyle = COLORS.fielder;
-        ctx.globalAlpha = 0.75;
+        const y = cy + Math.sin(a) * rr * 0.9;
+        ctx.fillStyle = "#f4f7fa";
         ctx.beginPath();
         ctx.arc(x, y, 3, 0, Math.PI * 2);
         ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+        const name = fielderNames[i] ?? "";
+        if (name) {
+          ctx.fillStyle = "#f2d67a";
+          ctx.textAlign = "center";
+          ctx.fillText(name, x, y - 6);
+        }
       });
 
-      // Keeper close to the stumps.
-      ctx.fillStyle = "#f0b429";
-      ctx.beginPath();
-      ctx.arc(cx + r * 0.09, cy - r * 0.2, 3.5, 0, Math.PI * 2);
-      ctx.fill();
+      // ---- batters ----
+      const strikerId = snapshot?.striker_id ?? null;
+      const nonStrikerId = snapshot?.non_striker_id ?? null;
+      const batter = (id: number | null, dy: number, colour: string) => {
+        if (!id) return;
+        const x = cx + 9;
+        const y = cy + dy * pitchH * 0.31 + Math.sin(time * 5) * 1.2;
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        ctx.arc(x, y - 7, 2.8, 0, Math.PI * 2); // head
+        ctx.fill();
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(x, y - 4.5);
+        ctx.lineTo(x, y + 2.5);
+        ctx.stroke();
+        // bat
+        ctx.strokeStyle = "#e8d5b0";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - 4, y - 3);
+        ctx.lineTo(x - 4, y + 6);
+        ctx.stroke();
+      };
+      batter(strikerId, 1, "#f2c14e");
+      batter(nonStrikerId, -1, "#8fd0ff");
 
-      // Bowler + batter at the ends.
-      drawPerson(ctx, cx - r * 0.1, cy + r * 0.22, COLORS.bowler, t);
-      drawPerson(ctx, cx + r * 0.1, cy - r * 0.22, COLORS.batter, t + 1.5);
-
-      // Ball on a short flight path.
-      const phase = (t * 1.6) % 1;
-      const bx = cx - r * 0.1 + (cx + r * 0.1 - (cx - r * 0.1)) * phase;
-      const by =
-        cy +
-        r * 0.22 +
-        ((cy - r * 0.22) - (cy + r * 0.22)) * phase -
-        Math.sin(phase * Math.PI) * 12;
+      // ---- bowler + ball in flight ----
+      const bowlX = cx - 10;
+      const bowlY = cy - pitchH * 0.31;
       ctx.fillStyle = "#e05263";
       ctx.beginPath();
-      ctx.arc(bx, by, 2.6, 0, Math.PI * 2);
+      ctx.arc(bowlX, bowlY - 6, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#e05263";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bowlX, bowlY - 3);
+      ctx.lineTo(bowlX, bowlY + 4);
+      ctx.stroke();
+
+      const phase = (time * 1.1) % 1;
+      const bx = bowlX + (cx + 9 - bowlX) * phase;
+      const by =
+        bowlY + ((cy + pitchH * 0.31) - bowlY) * phase - Math.sin(phase * Math.PI) * 14;
+      ctx.fillStyle = "#e04a56";
+      ctx.beginPath();
+      ctx.arc(bx, by, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+      // seam
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.arc(bx, by, 2.8, 0.6, 2.4);
+      ctx.stroke();
+
+      // ---- keeper ----
+      ctx.fillStyle = "#f4f7fa";
+      ctx.beginPath();
+      ctx.arc(cx + 16, cy - pitchH * 0.3, 2.6, 0, Math.PI * 2);
       ctx.fill();
 
-      requestAnimationFrame(draw);
+      // ---- umpire ----
+      ctx.fillStyle = "#dfe6ee";
+      ctx.beginPath();
+      ctx.arc(cx - 16, cy - pitchH * 0.3, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ---- floodlight pools for day/night ----
+      if (dayNight) {
+        for (const [lx, ly] of [
+          [cx - R * 0.7, cy - R * 0.72],
+          [cx + R * 0.7, cy - R * 0.72],
+          [cx - R * 0.7, cy + R * 0.7],
+          [cx + R * 0.7, cy + R * 0.7],
+        ]) {
+          const flare = ctx.createRadialGradient(lx, ly, 0, lx, ly, R * 0.4);
+          flare.addColorStop(0, "rgba(255, 250, 220, 0.28)");
+          flare.addColorStop(1, "rgba(255, 250, 220, 0)");
+          ctx.fillStyle = flare;
+          ctx.beginPath();
+          ctx.arc(lx, ly, R * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      raf.current = requestAnimationFrame(draw);
     };
 
-    draw();
-    return () => cancelAnimationFrame(frame.current);
-  }, [dots, night]);
+    raf.current = requestAnimationFrame(draw);
+    return () => {
+      cancelAnimationFrame(raf.current);
+      observer.disconnect();
+    };
+  }, [fielders, fielderNames, batterNames, dayNight, innings, snapshot?.striker_id, snapshot?.non_striker_id]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="matchview"
-      aria-label="Overhead 2D match view"
-    />
+    <div className="groundwrap">
+      <canvas
+        ref={canvasRef}
+        className="groundcanvas"
+        aria-label="Overhead 2D match view"
+      />
+    </div>
   );
 }
 
-function drawPerson(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  color: string,
-  t: number,
-) {
-  const bob = Math.sin(t * 6) * 0.6;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y + bob - 5, 2.6, 0, Math.PI * 2); // head
-  ctx.fill();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x, y + bob - 2.6);
-  ctx.lineTo(x, y + bob + 2);
-  ctx.stroke();
-}
+export { INNINGS_BALLS };

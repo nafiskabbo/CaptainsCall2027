@@ -7,32 +7,22 @@ interface Props {
   onStartCareer: (teamId: number, name: string, seed: number) => void | Promise<void>;
 }
 
+const SEASONS = ["2027", "2028", "2029"];
+
 function teamLabel(world: World, team: Team): string {
   const nation = world.nations.find((n) => n.id === team.nation_id);
   return nation ? `${nation.short_name} · ${team.name}` : team.name;
 }
 
-function roleLabel(role: string): string {
-  const spaced = role.replace(/_/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-function skillBar(value: number, tone: "bat" | "bowl") {
-  const pct = Math.max(4, Math.min(100, value));
-  return (
-    <span className={`skillbar skillbar--${tone}`}>
-      <span className="skillbar__fill" style={{ width: `${pct}%` }} />
-      <span className="skillbar__num">{value}</span>
-    </span>
-  );
-}
-
 export default function WorldScreen({ world, onStartCareer }: Props) {
-  const [homeId, setHomeId] = useState<number>(
+  const [teamId, setTeamId] = useState<number>(
     () => world.teams.find((t) => !t.is_national)?.id ?? world.teams[0]?.id ?? 0,
   );
   const [careerName, setCareerName] = useState<string>("My Career");
+  const [season, setSeason] = useState<string>("2027");
   const [seed, setSeed] = useState<number>(() => 20270101);
+  const [resetForm, setResetForm] = useState(false);
+  const [selectBoth, setSelectBoth] = useState(true);
   const [squad, setSquad] = useState<Player[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,22 +39,22 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
     return [...map.entries()];
   }, [world]);
 
-  const homeTeam = world.teams.find((t) => t.id === homeId);
-  const competitions = world.competitions.filter((c) => c.team_ids.includes(homeId));
+  const team = world.teams.find((t) => t.id === teamId);
+  const competitions = world.competitions.filter((c) => c.team_ids.includes(teamId));
 
   useEffect(() => {
-    if (!homeId) return;
+    if (!teamId) return;
     api
-      .getSquad(homeId)
+      .getSquad(teamId)
       .then(setSquad)
       .catch((e) => setError(String(e)));
-  }, [homeId]);
+  }, [teamId]);
 
   const start = async () => {
     setBusy(true);
     setError(null);
     try {
-      await onStartCareer(homeId, careerName.trim() || "My Career", seed);
+      await onStartCareer(teamId, careerName.trim() || "My Career", seed);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -73,78 +63,104 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
   };
 
   return (
-    <div className="grid grid--setup">
+    <div className="stack">
       <section className="panel">
-        <h2>New career</h2>
-        <div className="field">
-          <label htmlFor="career-name">Career name</label>
-          <input
-            id="career-name"
-            type="text"
-            value={careerName}
-            onChange={(e) => setCareerName(e.target.value)}
-          />
+        <h2 className="panel__title">Setup Career</h2>
+
+        <div className="setuprow">
+          <span className="setuprow__label">Manager name</span>
+          <div className="setuprow__control">
+            <input
+              type="text"
+              value={careerName}
+              onChange={(e) => setCareerName(e.target.value)}
+              aria-label="Manager name"
+            />
+          </div>
         </div>
 
-        <div className="field">
-          <label htmlFor="home">Take charge of</label>
-          <select
-            id="home"
-            value={homeId}
-            onChange={(e) => setHomeId(Number(e.target.value))}
+        <div className="setuprow">
+          <span className="setuprow__label">Take charge of</span>
+          <div className="setuprow__control">
+            <select
+              value={teamId}
+              onChange={(e) => setTeamId(Number(e.target.value))}
+              aria-label="Club"
+            >
+              {teamsByNation.map(([nation, teams]) => (
+                <optgroup key={nation} label={nation}>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {teamLabel(world, t)}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <label className="radio">
+              <input type="checkbox" checked={selectBoth} onChange={(e) => setSelectBoth(e.target.checked)} />
+              Select both team lineups?
+            </label>
+          </div>
+        </div>
+
+        <div className="setuprow">
+          <span className="setuprow__label">Starting season</span>
+          <div className="setuprow__control">
+            <select value={season} onChange={(e) => setSeason(e.target.value)} aria-label="Season">
+              {SEASONS.map((s) => (
+                <option key={s} value={s}>
+                  {s} season
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="setuprow">
+          <span className="setuprow__label">Database seed</span>
+          <div className="setuprow__control">
+            <input
+              type="number"
+              value={seed}
+              onChange={(e) => setSeed(Number(e.target.value))}
+              aria-label="Database seed"
+            />
+            <label className="radio">
+              <input type="checkbox" checked={resetForm} onChange={(e) => setResetForm(e.target.checked)} />
+              Reset player form?
+            </label>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "0.8rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button
+            className="btn btn--primary"
+            onClick={start}
+            disabled={busy || !teamId || competitions.length === 0}
           >
-            {teamsByNation.map(([nation, teams]) => (
-              <optgroup key={nation} label={nation}>
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {teamLabel(world, t)}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            {busy ? "Starting…" : "Begin Season"}
+          </button>
+          <span className="muted">
+            {competitions.length > 0
+              ? `Enters ${competitions.map((c) => c.name).join(", ")}`
+              : "This club has no competition — pick another side."}
+          </span>
         </div>
-
-        <div className="field">
-          <label htmlFor="seed">Seed (same seed = same season)</label>
-          <input
-            id="seed"
-            type="number"
-            value={seed}
-            onChange={(e) => setSeed(Number(e.target.value))}
-          />
-        </div>
-
-        <button
-          className="btn btn--primary"
-          onClick={start}
-          disabled={busy || !homeId || competitions.length === 0}
-        >
-          {busy ? "Starting…" : "Start career"}
-        </button>
-        {competitions.length === 0 && (
-          <p className="muted">
-            This team has no competition in the current database — pick another side.
-          </p>
-        )}
         {error && <p className="error">{error}</p>}
-        <p className="muted">
-          Your side plays a full round-robin. Other fixtures are simulated automatically;
-          you play your own matches ball by ball.
-        </p>
       </section>
 
-      <section className="panel">
-        <h2>
-          Squad — {homeTeam?.name ?? "—"}{" "}
-          <span className="muted">({squad.length} players)</span>
-        </h2>
-        {homeTeam && competitions.length > 0 && (
+      <section className="panel panel--flush">
+        <div style={{ padding: "0.6rem 0.8rem 0" }}>
+          <h2 className="panel__title" style={{ marginBottom: "0.4rem" }}>
+            {team?.name ?? "Squad"} — {squad.length} players
+          </h2>
           <p className="muted">
-            Competitions: {competitions.map((c) => c.name).join(", ")}
+            Your side plays a full round-robin. Other fixtures simulate automatically; you play
+            your own matches ball by ball. All names are fictional.
           </p>
-        )}
-        <div className="tablewrap">
+        </div>
+        <div className="tablewrap" style={{ maxHeight: 420 }}>
           <table className="data">
             <thead>
               <tr>
@@ -161,9 +177,9 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
                 <tr key={p.id}>
                   <td>{p.name}</td>
                   <td className="num">{p.age}</td>
-                  <td className="role">{roleLabel(p.role)}</td>
-                  <td className="num">{skillBar(p.skills.bat, "bat")}</td>
-                  <td className="num">{skillBar(Math.max(p.skills.pace, p.skills.spin), "bowl")}</td>
+                  <td className="muted">{p.role.replace(/_/g, " ")}</td>
+                  <td className="num">{p.skills.bat}</td>
+                  <td className="num">{Math.max(p.skills.pace, p.skills.spin)}</td>
                   <td className="num">{p.skills.fielding}</td>
                 </tr>
               ))}
