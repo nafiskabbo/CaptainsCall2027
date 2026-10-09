@@ -60,7 +60,12 @@ pub fn revise_target(
 }
 
 /// Whether the chase is still alive given the current score.
-pub fn chase_alive(revised: RevisedTarget, current_runs: u32, wickets: u8, balls_left: u32) -> bool {
+pub fn chase_alive(
+    revised: RevisedTarget,
+    current_runs: u32,
+    wickets: u8,
+    balls_left: u32,
+) -> bool {
     if current_runs >= revised.target {
         return true;
     }
@@ -94,7 +99,10 @@ mod tests {
     fn losing_overs_reduces_the_target() {
         let full = revise_target(250, 50, 50, Format::Odi50);
         let rain = revise_target(250, 50, 30, Format::Odi50);
-        assert!(rain.target < full.target, "a shorter chase needs fewer runs");
+        assert!(
+            rain.target < full.target,
+            "a shorter chase needs fewer runs"
+        );
         assert!(rain.target >= 1, "never below 1");
     }
 
@@ -124,7 +132,10 @@ mod tests {
 
     #[test]
     fn chase_status_tracks_progress() {
-        let revised = RevisedTarget { target: 100, overs: 20 };
+        let revised = RevisedTarget {
+            target: 100,
+            overs: 20,
+        };
         assert!(chase_alive(revised, 50, 3, 120));
         assert!(chase_alive(revised, 100, 3, 60), "reaching the target wins");
         assert!(!chase_alive(revised, 50, 10, 60), "all out ends it");
@@ -133,7 +144,10 @@ mod tests {
 
     #[test]
     fn required_rate_is_sane() {
-        let revised = RevisedTarget { target: 121, overs: 20 };
+        let revised = RevisedTarget {
+            target: 121,
+            overs: 20,
+        };
         // 21 runs from 18 balls needs 7 an over.
         let rr = required_rate(revised, 100, 18);
         assert!((rr - 7.0).abs() < 0.01, "got {rr}");

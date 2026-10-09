@@ -48,6 +48,7 @@ pub fn run() {
             commands::bid_for_player,
             commands::release_player,
             commands::get_finances,
+            commands::set_training_focus,
             commands::get_update_state,
             commands::set_update_settings,
             commands::check_local_update,

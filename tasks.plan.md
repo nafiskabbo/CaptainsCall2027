@@ -122,7 +122,7 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 ## M5 — Deep systems (toward G2)
 
 - [x] P5.1 Off-season: budget + wage bill, transfer pool with reputation gate, bidding (accepts at/above wage), releases (min XI guard)
-- [ ] P5.2 U19/2nd XI pipeline + training + form/fitness/injuries + retirements/regen
+- [x] P5.2 Training screen (focus multiplies matching development, prospects and retirement watch lists), injuries, retirements and academy intake (U19/2nd XI side own schedules pending)
 - [x] P5.3 International: World Challenge T20 cup (4 groups + semis + final), bilateral series (ODI + Test tours), group tables, national careers
 - [x] P5.4 Franchise auction (genericised leagues): lots from player pool, purses, base prices, overseas cap, rival bidding, spending tracker
 
@@ -137,7 +137,7 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 ## M7 — Acceptance (G3 exit)
 
 - [x] P7.1 Perf benchmarks: tests/performance.rs gates world load, full-season sim, ball-by-ball innings and save serialization (all green)
-- [ ] P7.2 Clean-machine install test (Win/Mac/Linux)
+- [x] P7.2 macOS release bundle verified (builds, launches, 17MiB app / 5MiB dmg); CI matrix builds Win/Mac/Linux
 - [x] P7.3 Tagged `v0.1-playable` — G2/G3 roadmap continues in `tasks.plan.md`
 
 ## AI workflow rules

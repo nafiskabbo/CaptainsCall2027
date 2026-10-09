@@ -110,6 +110,7 @@ impl Career {
             players: Vec::new(),
             budget: None,
             season: 1,
+            training_focus: Default::default(),
             seed,
         };
 

@@ -199,8 +199,8 @@ pub fn load_career(
 ) -> Result<CareerView, String> {
     let conn = state.saves(&app)?;
     // Warn (but still load) when the save came from a different dbVersion.
-    let (loaded, matches_db) = db::load_checked(&conn, id, crate::world::DB_VERSION)
-        .map_err(|e| e.to_string())?;
+    let (loaded, matches_db) =
+        db::load_checked(&conn, id, crate::world::DB_VERSION).map_err(|e| e.to_string())?;
     let mismatch = if matches_db {
         None
     } else {
@@ -374,6 +374,18 @@ pub fn get_finances(state: SharedState<'_>) -> Result<Finances, String> {
         wage_bill: crate::core::transfers::wage_bill(&career.players, team_id),
         squad_size: crate::core::transfers::squad_size(&career.players, team_id),
     })
+}
+
+/// Set the squad's training focus for the season.
+#[tauri::command]
+pub fn set_training_focus(
+    state: SharedState<'_>,
+    focus: crate::db::TrainingFocus,
+) -> Result<CareerView, String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_mut().ok_or("no career in progress")?;
+    career.state.training_focus = focus;
+    Ok(build_view(career, &state.world))
 }
 
 /// Skip to the next match day, simulating other fixtures.

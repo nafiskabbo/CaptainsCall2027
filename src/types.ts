@@ -281,6 +281,7 @@ export interface CareerState {
   players: Player[];
   budget: number | null;
   season: number;
+  trainingFocus: TrainingFocus;
   seed: number;
 }
 
@@ -307,6 +308,8 @@ export interface CareerRecordRow {
   fifties: number;
   fiveWicketHauls: number;
 }
+
+export type TrainingFocus = "Batting" | "Bowling" | "Fielding" | "Fitness" | "None";
 
 export interface SaveSummary {
   id: number;

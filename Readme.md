@@ -72,7 +72,11 @@ This stack is ideal for AI-only development: Rust core has strict types/tests, f
 ```bash
 npm install
 npm run tauri:dev     # desktop app (Rust core + React UI)
+npm run tauri:build   # release bundle: .app + .dmg on macOS
 ```
+
+Release artifacts land in `src-tauri/target/release/bundle/` (≈17 MiB app,
+≈5 MiB dmg — inside the <25MB target in specs NFR-2).
 
 Useful scripts:
 

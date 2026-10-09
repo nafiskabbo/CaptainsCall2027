@@ -16,6 +16,7 @@ import type {
   Player,
   SaveSummary,
   TeamSelection,
+  TrainingFocus,
   World,
 } from "../types";
 
@@ -46,6 +47,8 @@ export const api = {
     invoke<BidOutcome>("bid_for_player", { playerId, offeredWage }),
   releasePlayer: (playerId: number) => invoke<void>("release_player", { playerId }),
   getFinances: () => invoke<Finances>("get_finances"),
+  setTrainingFocus: (focus: TrainingFocus) =>
+    invoke<CareerView>("set_training_focus", { focus }),
   getUpdateState: () => invoke<UpdateState>("get_update_state"),
   setUpdateSettings: (enabled: boolean, channel?: string) =>
     invoke<UpdateState>("set_update_settings", { enabled, channel }),

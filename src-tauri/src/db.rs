@@ -84,11 +84,59 @@ pub struct CareerState {
     /// Which season of this career we are in (1 = first).
     #[serde(default = "default_season")]
     pub season: u32,
+    /// Squad training focus for the coming season.
+    #[serde(default)]
+    pub training_focus: TrainingFocus,
     pub seed: u64,
 }
 
+/// Squad training focus, persisted with the career.
+
 fn default_season() -> u32 {
     1
+}
+
+/// What the squad works on between matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrainingFocus {
+    Batting,
+    Bowling,
+    Fielding,
+    Fitness,
+    None,
+}
+
+impl Default for TrainingFocus {
+    fn default() -> Self {
+        TrainingFocus::None
+    }
+}
+
+impl std::fmt::Display for TrainingFocus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let label = match self {
+            TrainingFocus::Batting => "batting",
+            TrainingFocus::Bowling => "bowling",
+            TrainingFocus::Fielding => "fielding",
+            TrainingFocus::Fitness => "fitness",
+            TrainingFocus::None => "balanced",
+        };
+        f.write_str(label)
+    }
+}
+
+impl From<TrainingFocus> for crate::core::development::TrainingFocus {
+    fn from(value: TrainingFocus) -> Self {
+        use crate::core::development::TrainingFocus as D;
+        match value {
+            TrainingFocus::Batting => D::Batting,
+            TrainingFocus::Bowling => D::Bowling,
+            TrainingFocus::Fielding => D::Fielding,
+            TrainingFocus::Fitness => D::Fitness,
+            TrainingFocus::None => D::None,
+        }
+    }
 }
 
 /// Runs the schema migrations on an existing connection.
@@ -291,6 +339,7 @@ mod tests {
             players: vec![],
             budget: None,
             season: 1,
+            training_focus: Default::default(),
             seed: 1,
         }
     }

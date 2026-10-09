@@ -408,6 +408,7 @@ mod tests {
             players,
             budget: None,
             season: 1,
+            training_focus: Default::default(),
             seed: 42,
         }
     }

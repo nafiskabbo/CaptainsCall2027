@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../tools/api";
 import type { CareerView, SaveSummary, World, Player } from "../types";
+import TrainingScreen from "./TrainingScreen";
 
 interface Props {
   world: World;
@@ -39,7 +40,13 @@ export default function OffSeasonScreen({
   onExit,
   onNewSeason,
 }: Props) {
-  const [tab, setTab] = useState<"report" | "transfers" | "squad" | "saves">("report");
+  const [tab, setTab] = useState<
+  | "report"
+  | "transfers"
+  | "squad"
+  | "training"
+  | "saves"
+>("report");
   const [pool, setPool] = useState<Listing[]>([]);
   const [finances, setFinances] = useState<Finances | null>(null);
   const [saves, setSaves] = useState<SaveSummary[]>([]);
@@ -163,6 +170,7 @@ export default function OffSeasonScreen({
               ["report", "Season report"],
               ["transfers", "Transfer window"],
               ["squad", "Squad"],
+              ["training", "Training"],
               ["saves", "Saves"],
             ] as const
           ).map(([key, label]) => (
@@ -311,6 +319,15 @@ export default function OffSeasonScreen({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {tab === "training" && (
+          <div style={{ padding: "0.6rem" }}>
+            <TrainingScreen
+              career={career}
+              onSaved={(message) => setStatus(message)}
+            />
           </div>
         )}
 
