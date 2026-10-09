@@ -259,13 +259,17 @@ export default function SelectionScreen({
                   <td className="num">{BATTING_SKILL(p)}</td>
                   <td className="num">{BOWLING_SKILL(p)}</td>
                   <td className="num">
-                    <button
-                      className="btn"
-                      onClick={() => add(p.id)}
-                      disabled={xi.length >= 11}
-                    >
-                      Add
-                    </button>
+                    {p.injury_days > 0 ? (
+                      <span className="pill pill--warn">inj {p.injury_days}d</span>
+                    ) : (
+                      <button
+                        className="btn"
+                        onClick={() => add(p.id)}
+                        disabled={xi.length >= 11}
+                      >
+                        Add
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

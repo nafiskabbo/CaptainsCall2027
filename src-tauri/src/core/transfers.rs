@@ -183,6 +183,7 @@ mod tests {
             fitness: 100,
             morale: 70,
             experience: 10,
+            injury_days: 0,
         }
     }
 

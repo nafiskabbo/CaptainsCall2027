@@ -44,6 +44,7 @@ fn player(id: u32, name: &str, bat: u8, bowl: u8, spin: bool, team_id: u32) -> P
         fitness: 100,
         morale: 70,
         experience: 50,
+        injury_days: 0,
     }
 }
 

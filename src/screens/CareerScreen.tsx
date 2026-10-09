@@ -470,7 +470,14 @@ function SquadRows({ world, teamId }: { world: World; teamId: number }) {
           p.age <= 24 && headroom > 3 ? "▲" : p.age >= 32 && headroom <= 3 ? "▼" : headroom > 3 ? "△" : "·";
         return (
           <tr key={p.id}>
-            <td>{p.name}</td>
+            <td>
+              {p.name}
+              {p.injury_days > 0 && (
+                <span className="pill pill--warn" style={{ marginLeft: "0.4rem" }}>
+                  inj {p.injury_days}d
+                </span>
+              )}
+            </td>
             <td className="num">{p.age}</td>
             <td className="muted">{p.role.replace(/_/g, " ")}</td>
             <td className="num">{p.skills.bat}</td>

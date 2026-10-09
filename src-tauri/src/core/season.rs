@@ -300,6 +300,7 @@ fn generate_intake(
                 fitness: 100,
                 morale: 70,
                 experience: 0,
+                injury_days: 0,
             });
             next_id += 1;
         }
@@ -376,6 +377,7 @@ mod tests {
                 fitness: 100,
                 morale: 70,
                 experience: 10,
+                injury_days: 0,
             })
             .collect();
         crate::db::CareerState {

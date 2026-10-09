@@ -42,6 +42,7 @@ export interface Player {
   fitness: number;
   morale: number;
   experience: number;
+  injury_days: number;
 }
 
 export interface Team {

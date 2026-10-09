@@ -212,6 +212,80 @@ fn event(
     }
 }
 
+/// Roll for injuries after a match.
+///
+/// Risk rises with age, bowling workload and low fitness; the result is
+/// deterministic for a given seed so replays match.
+pub fn roll_injuries(players: &mut BTreeMap<u32, Player>, seed: u64) -> Vec<(u32, u32)> {
+    let mut rng = SimRng::new(seed ^ 0x1AC1);
+    let mut out = Vec::new();
+    for player in players.values_mut() {
+        if !player.is_available() {
+            continue;
+        }
+        let workload = if player.skills.pace.0 > 60 || player.skills.spin.0 > 60 {
+            0.030
+        } else {
+            0.012
+        };
+        let age_risk = 0.010 * (player.age as f64 - 24.0).max(0.0) / 6.0;
+        let fitness_risk = (100.0 - f64::from(player.fitness)) / 100.0 * 0.040;
+        let chance = (workload + age_risk + fitness_risk).clamp(0.0, 0.25);
+        if rng.next_f64() < chance {
+            let days = 3 + rng.below(18) as u32;
+            player.injury_days = days;
+            out.push((player.id, days));
+        }
+    }
+    out
+}
+
+/// Heal injuries by one day.
+pub fn heal_injuries(players: &mut BTreeMap<u32, Player>) {
+    for player in players.values_mut() {
+        if player.injury_days > 0 {
+            player.injury_days -= 1;
+            // Fitness comes back with the injury.
+            if player.injury_days == 0 {
+                player.fitness = player.fitness.max(70);
+            }
+        }
+    }
+}
+
+/// Team training focus, applied while developing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrainingFocus {
+    Batting,
+    Bowling,
+    Fielding,
+    Fitness,
+    None,
+}
+
+impl TrainingFocus {
+    /// Multiplier applied to the matching skill's development rate.
+    pub fn multiplier(self) -> f64 {
+        match self {
+            TrainingFocus::Batting => 1.6,
+            TrainingFocus::Bowling => 1.6,
+            TrainingFocus::Fielding => 1.6,
+            TrainingFocus::Fitness => 1.4,
+            TrainingFocus::None => 1.0,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TrainingFocus::Batting => "Batting",
+            TrainingFocus::Bowling => "Bowling",
+            TrainingFocus::Fielding => "Fielding",
+            TrainingFocus::Fitness => "Fitness",
+            TrainingFocus::None => "Balanced",
+        }
+    }
+}
+
 /// Daily recovery: fitness drifts back toward 100 for everyone.
 pub fn apply_daily_recovery(players: &mut BTreeMap<u32, Player>) {
     for player in players.values_mut() {
@@ -281,6 +355,7 @@ mod tests {
             fitness: 100,
             morale: 70,
             experience: 0,
+            injury_days: 0,
         }
     }
 
@@ -364,6 +439,46 @@ mod tests {
         roll_season(&mut players);
         assert_eq!(players[&1].age, 25);
         assert_eq!(players[&1].form, 4);
+    }
+
+    #[test]
+    fn injuries_strike_sometimes_and_then_heal() {
+        let mut injured_seen = 0;
+        for seed in 0..60u64 {
+            let mut players = to_map(vec![player(1, 24), player(2, 30), player(3, 35)]);
+            // Older and tired players are likelier to break down.
+            players.get_mut(&3).unwrap().fitness = 40;
+            let injuries = roll_injuries(&mut players, seed);
+            for (id, days) in injuries {
+                assert!((3..=20).contains(&days), "injury length in range");
+                assert!(players[&id].injury_days > 0, "flagged as injured");
+                injured_seen += 1;
+            }
+        }
+        assert!(injured_seen > 0, "injuries should happen across seasons");
+
+        // Healing removes the flag.
+        let mut players = to_map(vec![player(1, 24)]);
+        players.get_mut(&1).unwrap().injury_days = 4;
+        for _ in 0..5 {
+            heal_injuries(&mut players);
+        }
+        assert_eq!(players[&1].injury_days, 0, "injury clears");
+        assert!(players[&1].is_available(), "fit again");
+    }
+
+    #[test]
+    fn fit_players_are_available_and_injured_are_not() {
+        let mut p = player(1, 25);
+        assert!(p.is_available());
+        p.injury_days = 3;
+        assert!(!p.is_available());
+    }
+
+    #[test]
+    fn training_focus_multiplies_matching_development() {
+        assert!(TrainingFocus::Batting.multiplier() > TrainingFocus::None.multiplier());
+        assert_eq!(TrainingFocus::None.label(), "Balanced");
     }
 
     #[test]

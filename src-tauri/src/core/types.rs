@@ -164,6 +164,9 @@ pub struct Player {
     pub fitness: u8,
     pub morale: u8,
     pub experience: u32,
+    /// Days remaining on an injury; 0 means fit to play.
+    #[serde(default)]
+    pub injury_days: u32,
 }
 
 impl Default for Player {
@@ -183,7 +186,15 @@ impl Default for Player {
             fitness: 100,
             morale: 70,
             experience: 0,
+            injury_days: 0,
         }
+    }
+}
+
+impl Player {
+    /// Whether the player can be selected.
+    pub fn is_available(&self) -> bool {
+        self.injury_days == 0
     }
 }
 

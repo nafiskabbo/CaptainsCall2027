@@ -8,7 +8,7 @@ use crate::core::rng::SimRng;
 use crate::core::skills::{skill_label, skill_value};
 use crate::core::scheduler::{self, Fixture, FixtureResult, TableRow};
 use crate::db::NewsItem;
-use crate::core::types::{Format, Player, World};
+use crate::core::types::{Format, Player, Team, World};
 use crate::match_::state::{MatchPhase, MatchSnapshot};
 use crate::match_::{MatchConfig, SimState, TeamSelection};
 use crate::world::DB_VERSION;
@@ -189,8 +189,8 @@ impl Career {
             .cloned()
             .ok_or("away team missing")?;
 
-        let mut home_sel = TeamSelection::auto_for(&home, &world.players, fixture.format);
-        let mut away_sel = TeamSelection::auto_for(&away, &world.players, fixture.format);
+        let mut home_sel = select_for(self, &home, fixture.format);
+        let mut away_sel = select_for(self, &away, fixture.format);
         // The player's saved XI wins over auto-pick.
         if let Some(saved) = self.state.selections.get(&fixture_id) {
             if fixture.home_id == self.state.player_team_id {
@@ -327,7 +327,7 @@ impl Career {
             .teams
             .iter()
             .find(|t| t.id == self.state.player_team_id)?;
-        Some(TeamSelection::auto_for(team, &world.players, fixture.format))
+        Some(select_for(self, team, fixture.format))
     }
 
     pub fn live_snapshot(&self) -> Option<MatchSnapshot> {
@@ -418,9 +418,43 @@ impl Career {
         self.live = None;
         self.last_snapshot = final_snapshot;
         self.develop_players(&played_xi, format);
+        self.roll_injuries();
         self.sync_players();
         self.absorb_records();
         crate::db::record_result(&mut self.state, fixture_id, result);
+    }
+
+    /// Roll for injuries among the players who just played.
+    fn roll_injuries(&mut self) {
+        use crate::core::development;
+        let mut map = development::to_map(self.players.clone());
+        let injuries = development::roll_injuries(&mut map, self.state.seed);
+        self.players = development::to_vec(map);
+
+        let own: Vec<u32> = self
+            .players
+            .iter()
+            .filter(|p| p.team_id == Some(self.state.player_team_id))
+            .map(|p| p.id)
+            .collect();
+        for (id, days) in injuries {
+            if !own.contains(&id) {
+                continue;
+            }
+            let name = self
+                .players
+                .iter()
+                .find(|p| p.id == id)
+                .map(|p| p.name.clone())
+                .unwrap_or_default();
+            self.state.news.insert(
+                0,
+                crate::db::NewsItem {
+                    day: self.state.season_day,
+                    headline: format!("{} is injured — out for {} days", name, days),
+                },
+            );
+        }
     }
 
     /// Fold the last completed scorecard into career records.
@@ -565,6 +599,7 @@ impl Career {
         let mut map = crate::core::development::to_map(self.players.clone());
         for _ in 0..rested {
             crate::core::development::apply_daily_recovery(&mut map);
+            crate::core::development::heal_injuries(&mut map);
         }
         self.players = crate::core::development::to_vec(map);
         self.sync_players();
@@ -667,6 +702,21 @@ fn build_international_programme(world: &World, team_id: u32, seed: u64) -> Vec<
     }
     out.sort_by_key(|f| f.day);
     out
+}
+
+/// Pick an XI avoiding injured players where possible.
+fn select_for(career: &Career, team: &Team, format: Format) -> TeamSelection {
+    if team.id == career.state.player_team_id {
+        let available: Vec<Player> = career
+            .players
+            .iter()
+            .filter(|p| p.is_available())
+            .cloned()
+            .collect();
+        TeamSelection::auto_for(team, &available, format)
+    } else {
+        TeamSelection::auto_for(team, &career.players, format)
+    }
 }
 
 fn tournaments_days(format: Format) -> u32 {
