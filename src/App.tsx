@@ -358,6 +358,6 @@ function advanceQuick(
   snapshot: MatchSnapshot,
   setSnapshot: (s: MatchSnapshot) => void,
 ) {
-  if (snapshot.phase === "Complete") return;
+  if (snapshot.phase === "complete") return;
   api.simMatch(100000).then(setSnapshot).catch(() => undefined);
 }

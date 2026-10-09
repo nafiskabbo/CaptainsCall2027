@@ -217,12 +217,14 @@ pub fn load_career(
     } else {
         loaded.players.clone()
     };
+    // Keep the stats the save was created with, not a blank slate.
+    let records = loaded.records.clone();
     let career = Career {
         state: loaded,
         players,
         live: None,
         last_snapshot: None,
-        records: Default::default(),
+        records,
     };
     let mut view = build_view(&career, &state.world);
     view.db_version_warning = mismatch;
@@ -462,15 +464,32 @@ pub fn sim_innings(state: SharedState<'_>) -> Result<MatchSnapshot, String> {
     Ok(career.advance_innings())
 }
 
+/// Write the scorecard of the last match to disk and return its path.
+///
+/// Works during a match and after it, using the live snapshot or the last
+/// completed one.
 #[tauri::command]
-pub fn export_scorecard(state: SharedState<'_>) -> Result<String, String> {
+pub fn export_scorecard(app: tauri::AppHandle, state: SharedState<'_>) -> Result<String, String> {
     let guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_ref().ok_or("no career in progress")?;
-    let live = career.live.as_ref().ok_or("no match in progress")?;
-    Ok(crate::commands::almanack::scorecard_html(
-        &live.snapshot(),
-        &state.world,
-    ))
+    let snapshot = career
+        .live
+        .as_ref()
+        .map(|l| l.snapshot())
+        .or_else(|| career.last_snapshot.clone())
+        .ok_or("no match has been played")?;
+
+    let html = crate::commands::almanack::scorecard_html(&snapshot, &state.world);
+
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?
+        .join("scorecards");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("scorecard-{}.html", snapshot.match_id));
+    std::fs::write(&path, html).map_err(|e| e.to_string())?;
+    Ok(path.display().to_string())
 }
 
 // ---------------- database update channel ----------------

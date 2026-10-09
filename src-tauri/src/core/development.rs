@@ -62,6 +62,7 @@ pub fn apply_match_development(
     participant_ids: &[u32],
     format: Format,
     seed: u64,
+    focus: TrainingFocus,
 ) -> Vec<DevelopmentEvent> {
     let mut events = Vec::new();
     let mut rng = SimRng::new(seed ^ (participant_ids.len() as u64).wrapping_mul(0x2545F491));
@@ -112,7 +113,20 @@ pub fn apply_match_development(
 
         // Skill drift. Young players climb toward potential; older players slip.
         if grow > 0.0 || decline > 0.0 {
-            let gained = drift_skills(player, grow, decline, &mut rng);
+            let (bat_rate, bowl_rate, field_rate) = match focus {
+                TrainingFocus::Batting => (focus.multiplier(), 1.0, 1.0),
+                TrainingFocus::Bowling => (1.0, focus.multiplier(), 1.0),
+                TrainingFocus::Fielding => (1.0, 1.0, focus.multiplier()),
+                TrainingFocus::Fitness => (1.0, 1.0, 1.0),
+                TrainingFocus::None => (1.0, 1.0, 1.0),
+            };
+            let gained = drift_skills(
+                player, grow, decline, &mut rng, bat_rate, bowl_rate, field_rate,
+            );
+            // Fitness focus also speeds recovery between matches.
+            if matches!(focus, TrainingFocus::Fitness) {
+                player.fitness = (player.fitness + 4).min(100);
+            }
             events.extend(gained);
         }
     }
@@ -126,6 +140,9 @@ fn drift_skills(
     grow: f64,
     decline: f64,
     rng: &mut SimRng,
+    bat_rate: f64,
+    bowl_rate: f64,
+    field_rate: f64,
 ) -> Vec<DevelopmentEvent> {
     let mut events = Vec::new();
     let now = player.experience as u64;
@@ -143,35 +160,28 @@ fn drift_skills(
     };
 
     let before = player.skills;
+    let base = grow - decline;
     let after = Skills {
-        bat: step(before.bat, player.potential.bat, grow - decline),
-        test_bat: step(before.test_bat, player.potential.test_bat, grow - decline),
-        odi_bat: step(before.odi_bat, player.potential.odi_bat, grow - decline),
-        t20_bat: step(before.t20_bat, player.potential.t20_bat, grow - decline),
+        bat: step(before.bat, player.potential.bat, base * bat_rate),
+        test_bat: step(before.test_bat, player.potential.test_bat, base * bat_rate),
+        odi_bat: step(before.odi_bat, player.potential.odi_bat, base * bat_rate),
+        t20_bat: step(before.t20_bat, player.potential.t20_bat, base * bat_rate),
         defence: step(
             before.defence,
             player.potential.defence,
-            grow * 1.2 - decline,
+            grow * 1.2 * bat_rate - decline,
         ),
-        pace: step(before.pace, player.potential.pace, grow - decline),
-        spin: step(before.spin, player.potential.spin, grow - decline),
-        odi_bowl: step(before.odi_bowl, player.potential.odi_bowl, grow - decline),
-        t20_bowl: step(before.t20_bowl, player.potential.t20_bowl, grow - decline),
+        pace: step(before.pace, player.potential.pace, base * bowl_rate),
+        spin: step(before.spin, player.potential.spin, base * bowl_rate),
+        odi_bowl: step(before.odi_bowl, player.potential.odi_bowl, base * bowl_rate),
+        t20_bowl: step(before.t20_bowl, player.potential.t20_bowl, base * bowl_rate),
         fielding: step(
             before.fielding,
             player.potential.fielding,
-            (grow - decline) * 0.8,
+            base * field_rate,
         ),
-        keeping: step(
-            before.keeping,
-            player.potential.keeping,
-            (grow - decline) * 0.9,
-        ),
-        leadership: step(
-            before.leadership,
-            player.potential.leadership,
-            (grow - decline) * 0.5,
-        ),
+        keeping: step(before.keeping, player.potential.keeping, base * field_rate),
+        leadership: step(before.leadership, player.potential.leadership, base * 0.5),
     };
     player.skills = after;
 
@@ -380,7 +390,13 @@ mod tests {
         let mut players = to_map(vec![player(1, 20)]);
         let before = players[&1].skills.bat;
         for i in 0..30u64 {
-            apply_match_development(&mut players, &[1], Format::T20, 100 + i);
+            apply_match_development(
+                &mut players,
+                &[1],
+                Format::T20,
+                100 + i,
+                TrainingFocus::None,
+            );
         }
         let after = players[&1].skills.bat;
         assert!(
@@ -400,7 +416,13 @@ mod tests {
         let mut players = to_map(vec![player(1, 36)]);
         let before = players[&1].skills.bat;
         for i in 0..30u64 {
-            apply_match_development(&mut players, &[1], Format::T20, 500 + i);
+            apply_match_development(
+                &mut players,
+                &[1],
+                Format::T20,
+                500 + i,
+                TrainingFocus::None,
+            );
         }
         let after = players[&1].skills.bat;
         assert!(
@@ -415,7 +437,7 @@ mod tests {
     fn players_never_exceed_potential_and_skill_stays_in_band() {
         let mut players = to_map(vec![player(1, 19), player(2, 35)]);
         for i in 0..200u64 {
-            apply_match_development(&mut players, &[1, 2], Format::Odi50, i);
+            apply_match_development(&mut players, &[1, 2], Format::Odi50, i, TrainingFocus::None);
             for p in players.values() {
                 assert!(p.skills.bat.0 <= p.potential.bat.0);
                 assert!((1..=99).contains(&p.skills.bat.0));
@@ -427,7 +449,7 @@ mod tests {
     fn fitness_drops_when_playing_and_recovers_when_resting() {
         let mut players = to_map(vec![player(1, 25)]);
         for i in 0..5u64 {
-            apply_match_development(&mut players, &[1], Format::T20, i);
+            apply_match_development(&mut players, &[1], Format::T20, i, TrainingFocus::None);
         }
         assert!(players[&1].fitness < 100);
         for _ in 0..10 {
@@ -441,7 +463,13 @@ mod tests {
         let mut players = to_map(vec![player(1, 21), player(2, 21)]);
         let before_bench = players[&2].skills.bat;
         for i in 0..20u64 {
-            apply_match_development(&mut players, &[1], Format::T20, 900 + i);
+            apply_match_development(
+                &mut players,
+                &[1],
+                Format::T20,
+                900 + i,
+                TrainingFocus::None,
+            );
         }
         assert_eq!(
             players[&2].skills.bat, before_bench,
@@ -459,8 +487,8 @@ mod tests {
     fn experience_grows_faster_in_longer_formats() {
         let mut t20 = to_map(vec![player(1, 24)]);
         let mut test = to_map(vec![player(1, 24)]);
-        apply_match_development(&mut t20, &[1], Format::T20, 1);
-        apply_match_development(&mut test, &[1], Format::Test, 1);
+        apply_match_development(&mut t20, &[1], Format::T20, 1, TrainingFocus::None);
+        apply_match_development(&mut test, &[1], Format::Test, 1, TrainingFocus::None);
         assert!(test[&1].experience > t20[&1].experience);
     }
 
@@ -511,6 +539,61 @@ mod tests {
     fn training_focus_multiplies_matching_development() {
         assert!(TrainingFocus::Batting.multiplier() > TrainingFocus::None.multiplier());
         assert_eq!(TrainingFocus::None.label(), "Balanced");
+    }
+
+    #[test]
+    fn training_focus_accelerates_matching_development() {
+        // Two identical young squads; one trains batting, the other is balanced.
+        let mut balanced = to_map(vec![player(1, 19)]);
+        let mut batting = to_map(vec![player(1, 19)]);
+        for i in 0..40u64 {
+            apply_match_development(
+                &mut balanced,
+                &[1],
+                Format::T20,
+                1000 + i,
+                TrainingFocus::None,
+            );
+            apply_match_development(
+                &mut batting,
+                &[1],
+                Format::T20,
+                1000 + i,
+                TrainingFocus::Batting,
+            );
+        }
+        let bat_balanced = balanced[&1].skills.bat;
+        let bat_focus = batting[&1].skills.bat;
+        assert!(
+            bat_focus.0 >= bat_balanced.0,
+            "batting focus must not slow batting: {bat_balanced:?} vs {bat_focus:?}"
+        );
+    }
+
+    #[test]
+    fn fielding_focus_lifts_fielding_faster_than_batting() {
+        let mut fielding = to_map(vec![player(1, 19)]);
+        let mut batting = to_map(vec![player(1, 19)]);
+        for i in 0..40u64 {
+            apply_match_development(
+                &mut fielding,
+                &[1],
+                Format::T20,
+                2000 + i,
+                TrainingFocus::Fielding,
+            );
+            apply_match_development(
+                &mut batting,
+                &[1],
+                Format::T20,
+                2000 + i,
+                TrainingFocus::Batting,
+            );
+        }
+        assert!(
+            fielding[&1].skills.fielding.0 >= batting[&1].skills.fielding.0,
+            "fielding focus should help fielding"
+        );
     }
 
     #[test]

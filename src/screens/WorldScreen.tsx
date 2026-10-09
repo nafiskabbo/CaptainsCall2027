@@ -41,6 +41,7 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
   }, [world]);
 
   const team = world.teams.find((t) => t.id === teamId);
+  const isNational = team?.is_national ?? false;
   const competitions = world.competitions.filter((c) => c.team_ids.includes(teamId));
 
   useEffect(() => {
@@ -138,7 +139,7 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
           <button
             className="btn btn--primary"
             onClick={start}
-            disabled={busy || !teamId || competitions.length === 0}
+            disabled={busy || !teamId || (competitions.length === 0 && !isNational)}
           >
             {busy ? "Starting…" : "Begin Season"}
           </button>

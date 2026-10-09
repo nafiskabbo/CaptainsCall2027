@@ -87,30 +87,26 @@ pub struct CareerState {
     /// Squad training focus for the coming season.
     #[serde(default)]
     pub training_focus: TrainingFocus,
+    /// Career statistics accumulated from every match.
+    #[serde(default)]
+    pub records: crate::core::records::CareerRecords,
     pub seed: u64,
 }
-
-/// Squad training focus, persisted with the career.
 
 fn default_season() -> u32 {
     1
 }
 
 /// What the squad works on between matches.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrainingFocus {
     Batting,
     Bowling,
     Fielding,
     Fitness,
+    #[default]
     None,
-}
-
-impl Default for TrainingFocus {
-    fn default() -> Self {
-        TrainingFocus::None
-    }
 }
 
 impl std::fmt::Display for TrainingFocus {
@@ -340,6 +336,7 @@ mod tests {
             budget: None,
             season: 1,
             training_focus: Default::default(),
+            records: Default::default(),
             seed: 1,
         }
     }

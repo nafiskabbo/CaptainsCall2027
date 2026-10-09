@@ -111,6 +111,7 @@ impl Career {
             budget: None,
             season: 1,
             training_focus: Default::default(),
+            records: Default::default(),
             seed,
         };
 
@@ -430,6 +431,7 @@ impl Career {
         self.roll_injuries();
         self.sync_players();
         self.absorb_records();
+        self.sync_players();
         crate::db::record_result(&mut self.state, fixture_id, result);
     }
 
@@ -516,9 +518,10 @@ impl Career {
         );
     }
 
-    /// Mirror the career's players into the save payload.
+    /// Mirror the career's players and records into the save payload.
     fn sync_players(&mut self) {
         self.state.players = self.players.clone();
+        self.state.records = self.records.clone();
     }
 
     /// Apply a match's development to the career's players and surface news for
@@ -531,6 +534,7 @@ impl Career {
             participant_ids,
             format,
             self.state.seed,
+            crate::core::development::TrainingFocus::None,
         );
         self.players = development::to_vec(map);
 
@@ -618,13 +622,7 @@ impl Career {
             .unwrap_or(current + 1);
         // Simulate everything between now and then.
         let mut news = Vec::new();
-        for day in current..next {
-            news.extend(self.simulate_day(world, day));
-            crate::core::development::apply_daily_recovery(&mut crate::core::development::to_map(
-                self.players.clone(),
-            ));
-        }
-        // Rest days restore fitness (approximated per day skipped).
+        // Rest days restore fitness and heal injuries.
         let rested = next.saturating_sub(current).max(1);
         let mut map = crate::core::development::to_map(self.players.clone());
         for _ in 0..rested {
@@ -632,6 +630,10 @@ impl Career {
             crate::core::development::heal_injuries(&mut map);
         }
         self.players = crate::core::development::to_vec(map);
+
+        for day in current..next {
+            news.extend(self.simulate_day(world, day));
+        }
         self.sync_players();
         self.state.season_day = next;
         news
@@ -691,11 +693,11 @@ fn build_international_programme(world: &World, team_id: u32, seed: u64) -> Vec<
     // 1. World Challenge T20 cup (groups + knockouts).
     let cup = tournaments::world_cup_fixtures(&nations, Format::T20, ground_of, 1, seed);
     for entry in &cup {
-        // Only schedule games the player's nation plays, plus one track of the
-        // rest so the competition still resolves around them.
-        if entry.fixture.home_id == team_id || entry.fixture.away_id == team_id {
-            out.push(entry.fixture.clone());
-        }
+        // Schedule every cup game, not just ours, so the tournament resolves
+        // around us and the other fixtures can be simulated on day advance.
+        let mut fixture = entry.fixture.clone();
+        fixture.stage = Some(entry.stage.label());
+        out.push(fixture);
     }
 
     // 2. Bilateral series after the cup.
@@ -722,22 +724,9 @@ fn build_international_programme(world: &World, team_id: u32, seed: u64) -> Vec<
         day += matches * tournaments_days(format) + 3;
     }
 
-    // Every game is against them or the cup winner — but knockouts need a
-    // home/away even before qualifiers are known, so fill the player in.
-    for f in out.iter_mut() {
-        if f.home_id == 0 || f.away_id == 0 {
-            if f.home_id == 0 {
-                f.home_id = team_id;
-            }
-            if f.away_id == 0 {
-                f.away_id = *nations
-                    .iter()
-                    .find(|id| **id != team_id)
-                    .unwrap_or(&team_id);
-            }
-        }
-    }
-    out.sort_by_key(|f| f.day);
+    // Knockout slots stay as placeholders (team 0) until the group tables know
+    // their qualifiers; sorting them last keeps the group stage running first.
+    out.sort_by_key(|f| (f.day, f.home_id == 0));
     out
 }
 
@@ -752,6 +741,8 @@ fn select_for(career: &Career, team: &Team, format: Format) -> TeamSelection {
             .collect();
         TeamSelection::auto_for(team, &available, format)
     } else {
+        // Use the career's developed squad for our own side so auto-picks
+        // reflect growth rather than the bundled database.
         TeamSelection::auto_for(team, &career.players, format)
     }
 }

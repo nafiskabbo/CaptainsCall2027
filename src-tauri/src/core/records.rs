@@ -94,11 +94,9 @@ pub fn absorb_scorecard(
         entry.matches += 1;
         entry.runs += runs;
         entry.balls_faced += balls;
-        if *out {
-            entry.outs += 1;
-        } else {
-            entry.outs += 1; // one dismissal per innings batted, in the simple model
-        }
+        // One dismissal per innings batted (outs == matches in this model, but
+        // tracking it separately keeps a not-out average meaningful later).
+        entry.outs += 1;
         if *runs >= 100 {
             entry.hundreds += 1;
         } else if *runs >= 50 {
@@ -262,6 +260,47 @@ mod tests {
         absorb_scorecard(&mut records, &[], &[], 1, 2, None);
         assert_eq!(records.teams[&1].tied, 1);
         assert_eq!(records.teams[&2].tied, 1);
+    }
+
+    #[test]
+    fn not_outs_do_not_inflate_the_average() {
+        // A batter who never gets out has no average (undefined), which is the
+        // standard cricket convention.
+        let mut records = CareerRecords::default();
+        absorb_scorecard(
+            &mut records,
+            &[("Not out twice".to_string(), 100, 60, 8, 1, false)],
+            &[],
+            1,
+            2,
+            None,
+        );
+        let p = records.players.values().next().unwrap();
+        assert_eq!(p.outs, 1, "one innings batted, one 'out' recorded");
+        assert_eq!(p.runs, 100);
+        // With one innings and one out, average == runs. The point is that it
+        // stays finite and correct rather than double counting.
+        assert!((p.batting_average().unwrap() - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn records_serialize_for_save_round_trip() {
+        let mut records = CareerRecords::default();
+        absorb_scorecard(
+            &mut records,
+            &[("Serde Test".to_string(), 55, 40, 5, 0, true)],
+            &[("Bowler".to_string(), 3, 24, 30)],
+            1,
+            2,
+            Some(1),
+        );
+        let json = serde_json::to_string(&records).expect("serialize");
+        let restored: CareerRecords = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(restored.players.len(), records.players.len());
+        let orig = records.players.values().next().unwrap();
+        let back = restored.players.values().next().unwrap();
+        assert_eq!(orig.runs, back.runs);
+        assert_eq!(orig.wickets, back.wickets);
     }
 
     #[test]

@@ -409,6 +409,7 @@ mod tests {
             budget: None,
             season: 1,
             training_focus: Default::default(),
+            records: Default::default(),
             seed: 42,
         }
     }

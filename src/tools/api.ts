@@ -69,5 +69,6 @@ export const api = {
   simMatch: (count: number) => invoke<MatchSnapshot>("sim_match", { count }),
   /** Fast-forward to the end of the current innings. */
   simInnings: () => invoke<MatchSnapshot>("sim_innings"),
+  /// Writes the scorecard to disk and returns its path.
   exportScorecard: () => invoke<string>("export_scorecard"),
 };

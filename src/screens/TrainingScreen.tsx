@@ -14,16 +14,16 @@ interface Props {
 }
 
 const FOCUSES: { value: TrainingFocus; label: string; blurb: string }[] = [
-  { value: "Batting", label: "Batting", blurb: "Faster improvement in all batting skills" },
-  { value: "Bowling", label: "Bowling", blurb: "Faster improvement in pace and spin" },
-  { value: "Fielding", label: "Fielding", blurb: "Faster improvement in fielding and keeping" },
-  { value: "Fitness", label: "Fitness", blurb: "Better recovery between matches" },
-  { value: "None", label: "Balanced", blurb: "No specialisation — normal development" },
+  { value: "batting", label: "Batting", blurb: "Faster improvement in all batting skills" },
+  { value: "bowling", label: "Bowling", blurb: "Faster improvement in pace and spin" },
+  { value: "fielding", label: "Fielding", blurb: "Faster improvement in fielding and keeping" },
+  { value: "fitness", label: "Fitness", blurb: "Better recovery between matches" },
+  { value: "none", label: "Balanced", blurb: "No specialisation — normal development" },
 ];
 
 export default function TrainingScreen({ career, onSaved }: Props) {
   const [squad, setSquad] = useState<Player[]>([]);
-  const [focus, setFocus] = useState<TrainingFocus>("None");
+  const [focus, setFocus] = useState<TrainingFocus>("none");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function TrainingScreen({ career, onSaved }: Props) {
     setBusy(true);
     try {
       await api.setTrainingFocus(focus);
-      onSaved(`Training focus set to ${focus === "None" ? "Balanced" : focus}.`);
+      onSaved(`Training focus set to ${focus === "none" ? "Balanced" : focus}.`);
     } finally {
       setBusy(false);
     }

@@ -456,13 +456,19 @@ fn international_career_schedules_cup_and_tours() {
         fixture_count > 3,
         "an international programme should be non-trivial"
     );
-    // Every fixture involves your nation.
-    for f in &career.state.fixtures {
-        assert!(
-            f.home_id == nation_team.id || f.away_id == nation_team.id,
-            "international careers should only schedule your own games"
-        );
-    }
+    // The whole cup is scheduled, so the tournament resolves around your
+    // nation and the other games can be simulated on day advance.
+    let mine = career
+        .state
+        .fixtures
+        .iter()
+        .filter(|f| f.home_id == nation_team.id || f.away_id == nation_team.id)
+        .count();
+    assert!(mine >= 3, "your nation should play group games, got {mine}");
+    assert!(
+        career.state.fixtures.len() > mine,
+        "the rest of the cup runs too"
+    );
     // And the squad comes from the whole nation.
     let squad: Vec<_> = career
         .players
@@ -471,23 +477,41 @@ fn international_career_schedules_cup_and_tours() {
         .collect();
     assert!(squad.len() >= 11, "national pool must field an XI");
 
-    // Play the first fixture.
-    let first = career.state.fixtures[0].id;
+    // Play the first fixture involving our nation (the cup also schedules
+    // games between other nations, which are simulated on day advance).
+    let first = career
+        .state
+        .fixtures
+        .iter()
+        .find(|f| f.home_id == nation_team.id || f.away_id == nation_team.id)
+        .map(|f| f.id)
+        .expect("our nation plays a group game");
     career.start_fixture(&world, first).unwrap();
     career.advance_innings();
     career.advance_innings();
-    assert!(
-        career.state.fixtures[0].result.is_some(),
-        "first game scores"
-    );
+    let played = career
+        .state
+        .fixtures
+        .iter()
+        .find(|f| f.id == first)
+        .unwrap();
+    assert!(played.result.is_some(), "our first game scores");
 
     // Off-season should keep producing an international programme.
     career.state.season = 1;
-    captains_call_2027_lib::core::season::roll_season(&mut career.state, &world, 1);
+    let next = captains_call_2027_lib::core::season::roll_season(&mut career.state, &world, 1);
     assert!(career.state.fixtures.len() > 3, "season 2 has fixtures");
-    for f in &career.state.fixtures {
-        assert!(f.home_id == nation_team.id || f.away_id == nation_team.id);
-    }
+    assert!(next.new_season_fixtures > 3);
+    let mine_next = career
+        .state
+        .fixtures
+        .iter()
+        .filter(|f| f.home_id == nation_team.id || f.away_id == nation_team.id)
+        .count();
+    assert!(
+        mine_next >= 3,
+        "your nation still has group games in season 2"
+    );
 }
 
 #[test]
@@ -548,4 +572,52 @@ fn career_records_accumulate_across_matches() {
     for p in batters {
         assert!(p.strike_rate() >= 0.0 && p.strike_rate() <= 600.0);
     }
+}
+
+#[test]
+fn training_focus_persists_in_saves() {
+    use captains_call_2027_lib::db::TrainingFocus;
+
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Training".into(), 31).unwrap();
+    assert_eq!(career.state.training_focus, TrainingFocus::None);
+
+    // Change it, then round-trip through the save payload.
+    career.state.training_focus = TrainingFocus::Bowling;
+    let json = serde_json::to_string(&career.state).unwrap();
+    // The wire format is snake_case, matching the UI contract.
+    assert!(
+        json.contains("\"training_focus\":\"bowling\""),
+        "wire format is snake_case"
+    );
+    let restored: captains_call_2027_lib::db::CareerState = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.training_focus, TrainingFocus::Bowling);
+}
+
+#[test]
+fn records_survive_a_career_save_round_trip() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Records".into(), 12).unwrap();
+
+    let fixture = career.state.fixtures[0].clone();
+    if fixture.home_id == team_id || fixture.away_id == team_id {
+        career.start_fixture(&world, fixture.id).unwrap();
+        career.advance_innings();
+        career.advance_innings();
+    }
+
+    // Records are mirrored into the save state, so a reload keeps them.
+    assert!(
+        !career.state.records.players.is_empty() || career.state.fixtures[0].result.is_none(),
+        "records should be synced into the save payload"
+    );
+    let json = serde_json::to_string(&career.state).unwrap();
+    let restored: captains_call_2027_lib::db::CareerState = serde_json::from_str(&json).unwrap();
+    assert_eq!(
+        restored.records.players.len(),
+        career.state.records.players.len(),
+        "records must not be wiped by a save/load cycle"
+    );
 }

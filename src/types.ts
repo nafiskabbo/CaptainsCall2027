@@ -93,23 +93,25 @@ export interface World {
   competitions: Competition[];
 }
 
+// Rust: MatchPhase with #[serde(rename_all = "snake_case")]
 export type MatchPhase =
-  | "PreMatch"
-  | "Innings1"
-  | "Innings2"
-  | "Innings3"
-  | "Innings4"
-  | "Complete";
+  | "pre_match"
+  | "innings1"
+  | "innings2"
+  | "innings3"
+  | "innings4"
+  | "complete";
 
+// Rust: DismissalType with #[serde(rename_all = "snake_case")]
 export type DismissalType =
-  | "NotOut"
-  | "Bowled"
-  | "Caught"
-  | "Lbw"
-  | "RunOut"
-  | "Stumped"
-  | "CaughtAndBowled"
-  | "HitWicket";
+  | "not_out"
+  | "bowled"
+  | "caught"
+  | "lbw"
+  | "run_out"
+  | "stumped"
+  | "caught_and_bowled"
+  | "hit_wicket";
 
 export interface Dismissal {
   out_type: DismissalType;
@@ -128,12 +130,13 @@ export interface BallOutcome {
   commentary: string;
 }
 
+// Rust: FieldPreset with #[serde(rename_all = "snake_case")]
 export type FieldPreset =
-  | "Attacking"
-  | "Balanced"
-  | "Defensive"
-  | "BoundaryRiding"
-  | "SpinTrap";
+  | "attacking"
+  | "balanced"
+  | "defensive"
+  | "boundary_riding"
+  | "spin_trap";
 
 export interface MatchInput {
   batting_aggression: number;
@@ -199,7 +202,7 @@ export interface MatchSnapshot {
   non_striker_id: number | null;
   bowler_id: number | null;
   toss_winner: number;
-  toss_decision: "Bat" | "Bowl";
+  toss_decision: "bat" | "bowl";
   seed: number;
   clock: {
     day: number;
@@ -309,7 +312,8 @@ export interface CareerRecordRow {
   fiveWicketHauls: number;
 }
 
-export type TrainingFocus = "Batting" | "Bowling" | "Fielding" | "Fitness" | "None";
+// Rust: db::TrainingFocus with #[serde(rename_all = "snake_case")]
+export type TrainingFocus = "batting" | "bowling" | "fielding" | "fitness" | "none";
 
 export interface SaveSummary {
   id: number;

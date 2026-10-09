@@ -76,7 +76,14 @@ pub fn build_transfer_pool(
             player_id: player.id,
             name: player.name.clone(),
             age: player.age,
-            role: format!("{:?}", player.role),
+            role: match player.role {
+                crate::core::types::Role::Batter => "batter",
+                crate::core::types::Role::Wicketkeeper => "wicketkeeper",
+                crate::core::types::Role::Allrounder => "allrounder",
+                crate::core::types::Role::PaceBowler => "pace_bowler",
+                crate::core::types::Role::SpinBowler => "spin_bowler",
+            }
+            .to_string(),
             from_team: from,
             wage,
             reputation: Rating(best),

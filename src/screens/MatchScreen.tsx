@@ -1,7 +1,7 @@
 //! Match screen — 2D ground, live tactics, scorecards.
 //! Layout modelled on Cricket Coach 2014's match/scoreboard screens.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../tools/api";
 import type {
   FieldPreset,
@@ -21,11 +21,11 @@ interface Props {
 }
 
 const FIELD_PRESETS: { value: FieldPreset; label: string }[] = [
-  { value: "Attacking", label: "Attacking" },
-  { value: "Balanced", label: "Balanced" },
-  { value: "Defensive", label: "Defensive" },
-  { value: "BoundaryRiding", label: "Boundary riding" },
-  { value: "SpinTrap", label: "Spin trap" },
+  { value: "attacking", label: "Attacking" },
+  { value: "balanced", label: "Balanced" },
+  { value: "defensive", label: "Defensive" },
+  { value: "boundary_riding", label: "Boundary riding" },
+  { value: "spin_trap", label: "Spin trap" },
 ];
 
 const AGRESSION_LABELS: [number, string][] = [
@@ -48,19 +48,19 @@ function strikeRate(runs: number, balls: number): string {
 function howOut(out: { out_type: string } | null): string {
   if (!out) return "not out";
   switch (out.out_type) {
-    case "Caught":
+    case "caught":
       return "c fielder";
-    case "Bowled":
+    case "bowled":
       return "b bowler";
-    case "Lbw":
+    case "lbw":
       return "lbw";
-    case "RunOut":
+    case "run_out":
       return "run out";
-    case "Stumped":
+    case "stumped":
       return "st";
-    case "CaughtAndBowled":
+    case "caught_and_bowled":
       return "c & b";
-    case "HitWicket":
+    case "hit_wicket":
       return "hit wkt";
     default:
       return "out";
@@ -76,14 +76,17 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const inputRef = useRef<MatchInput>({
+  // Orders are real state: mutating a ref would never re-render the controls.
+  const [orders, setOrders] = useState<MatchInput>({
     batting_aggression: 50,
     keep_strike_toggle: false,
     hit_and_run_toggle: false,
     target_bowler_id: 0,
-    field_preset: "Balanced",
+    field_preset: "balanced",
   });
-  const input = inputRef.current;
+  const input = orders;
+  const patchOrders = (patch: Partial<MatchInput>) =>
+    setOrders((prev) => ({ ...prev, ...patch }));
 
   const innings = snapshot.innings[snapshot.current_innings] ?? null;
   const battingTeam = world.teams.find((t) => t.id === innings?.batting_team_id);
@@ -123,13 +126,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
   // Keep Rust-side orders in sync.
   useEffect(() => {
     api.setMatchInput(input).catch(() => undefined);
-  }, [
-    input.batting_aggression,
-    input.field_preset,
-    input.hit_and_run_toggle,
-    input.keep_strike_toggle,
-    input.target_bowler_id,
-  ]);
+  }, [orders]);
 
   const advance = async (n: number) => {
     setBusy(true);
@@ -150,11 +147,18 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
   };
 
   const exportCard = async () => {
-    const html = await api.exportScorecard();
-    setStatus(`Scorecard HTML generated (${html.length} bytes)`);
+    setBusy(true);
+    try {
+      const path = await api.exportScorecard();
+      setStatus(`Scorecard saved to ${path}`);
+    } catch (e) {
+      setStatus(`Could not export scorecard: ${e}`);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const complete = snapshot.phase === "Complete";
+  const complete = snapshot.phase === "complete";
   const strikerCard = innings?.batting_cards.find((c) => c.player_id === snapshot.striker_id);
   const nonStrikerCard = innings?.batting_cards.find(
     (c) => c.player_id === snapshot.non_striker_id,
@@ -328,10 +332,8 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
               <label htmlFor="aggression">Batting instructions</label>
               <select
                 id="aggression"
-                value={input.batting_aggression}
-                onChange={(e) => {
-                  input.batting_aggression = Number(e.target.value);
-                }}
+                value={orders.batting_aggression}
+                onChange={(e) => patchOrders({ batting_aggression: Number(e.target.value) })}
               >
                 {AGRESSION_LABELS.map(([v, label]) => (
                   <option key={v} value={v}>
@@ -362,10 +364,8 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
               <label htmlFor="bowler">Bring on</label>
               <select
                 id="bowler"
-                value={input.target_bowler_id}
-                onChange={(e) => {
-                  input.target_bowler_id = Number(e.target.value);
-                }}
+                value={orders.target_bowler_id}
+                onChange={(e) => patchOrders({ target_bowler_id: Number(e.target.value) })}
               >
                 <option value={0}>Engine choice</option>
                 {bowlingTeam &&
@@ -384,20 +384,16 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
             <label style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
               <input
                 type="checkbox"
-                checked={input.keep_strike_toggle}
-                onChange={(e) => {
-                  input.keep_strike_toggle = e.target.checked;
-                }}
+                checked={orders.keep_strike_toggle}
+                onChange={(e) => patchOrders({ keep_strike_toggle: e.target.checked })}
               />
               Order batsman to keep the strike
             </label>
             <label style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
               <input
                 type="checkbox"
-                checked={input.hit_and_run_toggle}
-                onChange={(e) => {
-                  input.hit_and_run_toggle = e.target.checked;
-                }}
+                checked={orders.hit_and_run_toggle}
+                onChange={(e) => patchOrders({ hit_and_run_toggle: e.target.checked })}
               />
               Order batsman to hit and run
             </label>
