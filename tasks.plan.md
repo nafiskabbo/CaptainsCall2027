@@ -96,7 +96,7 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 ## M4 — UI (G1 playable)
 
 - [x] P4.1 React shell: setup → career → match screens (Squad/Tables/News/Saves tabs)
-- [ ] P4.2 Squad screen: auto-select + saved XIs, drag-free keyboard selection
+- [x] P4.2 Selection screen: auto-pick + saved XIs, keyboard-accessible reordering/drop, composition hints (keepers/bowling)
 - [x] P4.3 Canvas 2D ground view (variable pitch, fielders, day/night) + scorebug
 - [x] P4.4 Orders panel + ball/over/session/end-innings/to-result controls
 - [ ] P4.5 Fixtures/tables screens + live widget

@@ -12,6 +12,11 @@ function teamLabel(world: World, team: Team): string {
   return nation ? `${nation.short_name} · ${team.name}` : team.name;
 }
 
+function roleLabel(role: string): string {
+  const spaced = role.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 function skillBar(value: number, tone: "bat" | "bowl") {
   const pct = Math.max(4, Math.min(100, value));
   return (
@@ -156,7 +161,7 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
                 <tr key={p.id}>
                   <td>{p.name}</td>
                   <td className="num">{p.age}</td>
-                  <td className="role">{p.role.replace(/([A-Z])/g, " $1").trim()}</td>
+                  <td className="role">{roleLabel(p.role)}</td>
                   <td className="num">{skillBar(p.skills.bat, "bat")}</td>
                   <td className="num">{skillBar(Math.max(p.skills.pace, p.skills.spin), "bowl")}</td>
                   <td className="num">{p.skills.fielding}</td>

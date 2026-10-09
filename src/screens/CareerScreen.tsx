@@ -10,6 +10,7 @@ import type {
   SaveSummary,
   World,
 } from "../types";
+import SelectionScreen from "./SelectionScreen";
 
 interface Props {
   world: World;
@@ -37,6 +38,11 @@ function formatLabel(format: Format): string {
   return FORMAT_LABEL[format] ?? format;
 }
 
+function roleLabel(role: string): string {
+  const spaced = role.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 export default function CareerScreen({
   world,
   career,
@@ -45,11 +51,16 @@ export default function CareerScreen({
   onExit,
 }: Props) {
   const [tab, setTab] = useState<"fixtures" | "table" | "news" | "saves">("fixtures");
+  const [selectingId, setSelectingId] = useState<number | null>(null);
   const [saves, setSaves] = useState<SaveSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   const { state, table, next_fixture_id, season_complete } = career;
+
+  // The career state tells us which fixtures already have a stored XI.
+  const hasSelection = (fixtureId: number | null) =>
+    fixtureId !== null && fixtureId in state.selections;
   const myTeamId = state.player_team_id;
   const nextFixture = state.fixtures.find((f) => f.id === next_fixture_id) ?? null;
   const comp = world.competitions.find((c) => c.id === state.competition_id);
@@ -108,6 +119,25 @@ export default function CareerScreen({
     setSaves(await api.listSaves());
   };
 
+  if (selectingId !== null) {
+    const target = state.fixtures.find((f) => f.id === selectingId);
+    if (target) {
+      return (
+        <SelectionScreen
+          world={world}
+          fixture={target}
+          teamId={myTeamId}
+          onCancel={() => setSelectingId(null)}
+          onSaved={(message) => {
+            setSelectingId(null);
+            setStatus(message);
+            api.getCareer().then(onCareer);
+          }}
+        />
+      );
+    }
+  }
+
   return (
     <div className="career">
       <section className="panel careerhead">
@@ -145,16 +175,28 @@ export default function CareerScreen({
               Day {nextFixture.day}
               {nextFixture.home_id === myTeamId ? " · Home" : " · Away"}
             </p>
-            <button
-              className="btn btn--primary"
-              style={{ width: "100%", marginTop: "0.6rem" }}
-              disabled={busy}
-              onClick={() => play(nextFixture)}
-            >
-              Play match
-            </button>
+            <div className="btnrow" style={{ marginTop: "0.6rem" }}>
+              <button
+                className="btn"
+                onClick={() => setSelectingId(nextFixture.id)}
+                disabled={busy}
+              >
+                Select XI
+              </button>
+              <button
+                className="btn btn--primary"
+                style={{ width: "auto", flex: 1 }}
+                disabled={busy}
+                onClick={() => play(nextFixture)}
+              >
+                Play match
+              </button>
+            </div>
             <p className="muted">
-              Other fixtures that day are simulated automatically when you advance.
+              {hasSelection(nextFixture.id)
+                ? "Your XI is set for this match."
+                : "No XI set yet — the engine will auto-pick."}{" "}
+              Other fixtures that day simulate automatically when you advance.
             </p>
           </>
         ) : (
@@ -329,7 +371,7 @@ function SquadTable({ world, teamId }: { world: World; teamId: number }) {
             <tr key={p.id}>
               <td>{p.name}</td>
               <td className="num">{p.age}</td>
-              <td className="role">{p.role.replace(/([A-Z])/g, " $1").trim()}</td>
+              <td className="role">{roleLabel(p.role)}</td>
               <td className="num">{p.skills.bat}</td>
               <td className="num">{Math.max(p.skills.pace, p.skills.spin)}</td>
             </tr>

@@ -84,6 +84,7 @@ impl Career {
                 day: 1,
                 headline: format!("You take charge of {}", team.name),
             }],
+            selections: Default::default(),
             seed,
         };
 
@@ -160,8 +161,16 @@ impl Career {
             .cloned()
             .ok_or("away team missing")?;
 
-        let home_sel = TeamSelection::auto_for(&home, &world.players, fixture.format);
-        let away_sel = TeamSelection::auto_for(&away, &world.players, fixture.format);
+        let mut home_sel = TeamSelection::auto_for(&home, &world.players, fixture.format);
+        let mut away_sel = TeamSelection::auto_for(&away, &world.players, fixture.format);
+        // The player's saved XI wins over auto-pick.
+        if let Some(saved) = self.state.selections.get(&fixture_id) {
+            if fixture.home_id == self.state.player_team_id {
+                home_sel = saved.clone();
+            } else {
+                away_sel = saved.clone();
+            }
+        }
 
         // Seed derived from career + fixture so results are reproducible.
         let seed = self
@@ -205,6 +214,92 @@ impl Career {
             away_selection: away_sel,
         });
         Ok(snapshot)
+    }
+
+    /// Store the player's XI for a fixture. Validates it is a legal XI from the
+    /// club's own squad (mirrors the original game's selection rules).
+    pub fn set_selection(
+        &mut self,
+        world: &World,
+        fixture_id: u32,
+        selection: TeamSelection,
+    ) -> Result<(), String> {
+        let fixture = self
+            .state
+            .fixtures
+            .iter()
+            .find(|f| f.id == fixture_id)
+            .cloned()
+            .ok_or_else(|| format!("fixture {fixture_id} not found"))?;
+        if fixture.home_id != self.state.player_team_id
+            && fixture.away_id != self.state.player_team_id
+        {
+            return Err("that match does not involve your team".into());
+        }
+
+        if selection.xi_ids.len() != 11 {
+            return Err(format!(
+                "an XI needs exactly 11 players, got {}",
+                selection.xi_ids.len()
+            ));
+        }
+        let mut unique: Vec<u32> = selection.xi_ids.clone();
+        unique.sort_unstable();
+        unique.dedup();
+        if unique.len() != 11 {
+            return Err("the XI contains the same player twice".into());
+        }
+
+        // Every player must belong to the club (or its nation for national sides).
+        let team = world
+            .teams
+            .iter()
+            .find(|t| t.id == self.state.player_team_id)
+            .ok_or("team missing")?;
+        let squad_ids: std::collections::HashSet<u32> = world
+            .players
+            .iter()
+            .filter(|p| {
+                if team.is_national {
+                    p.nation_id == team.nation_id
+                } else {
+                    p.team_id == Some(team.id)
+                }
+            })
+            .map(|p| p.id)
+            .collect();
+        for id in &selection.xi_ids {
+            if !squad_ids.contains(id) {
+                return Err("every player must be in your squad".into());
+            }
+        }
+
+        // The batting order must name the same 11 players.
+        if selection.batting_order.len() != 11 {
+            return Err("the batting order must list 11 players".into());
+        }
+        let mut order_unique: Vec<u32> = selection.batting_order.clone();
+        order_unique.sort_unstable();
+        order_unique.dedup();
+        if order_unique != unique {
+            return Err("the batting order must list the same 11 players".into());
+        }
+
+        self.state.selections.insert(fixture_id, selection);
+        Ok(())
+    }
+
+    /// The stored XI for a fixture, or the engine's auto-pick.
+    pub fn selection_for(&self, world: &World, fixture_id: u32) -> Option<TeamSelection> {
+        if let Some(saved) = self.state.selections.get(&fixture_id) {
+            return Some(saved.clone());
+        }
+        let fixture = self.state.fixtures.iter().find(|f| f.id == fixture_id)?;
+        let team = world
+            .teams
+            .iter()
+            .find(|t| t.id == self.state.player_team_id)?;
+        Some(TeamSelection::auto_for(team, &world.players, fixture.format))
     }
 
     pub fn live_snapshot(&self) -> Option<MatchSnapshot> {

@@ -198,6 +198,31 @@ pub fn advance_day(state: SharedState<'_>) -> Result<CareerView, String> {
 
 // ---------------- live match commands ----------------
 
+/// Read the XI the player has saved for a fixture (or the auto-pick).
+#[tauri::command]
+pub fn get_selection(
+    state: SharedState<'_>,
+    fixture_id: u32,
+) -> Result<crate::match_::TeamSelection, String> {
+    let guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_ref().ok_or("no career in progress")?;
+    career
+        .selection_for(&state.world, fixture_id)
+        .ok_or_else(|| format!("fixture {fixture_id} not found"))
+}
+
+/// Save an XI for a fixture. Validated on the Rust side.
+#[tauri::command]
+pub fn set_selection(
+    state: SharedState<'_>,
+    fixture_id: u32,
+    selection: crate::match_::TeamSelection,
+) -> Result<(), String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_mut().ok_or("no career in progress")?;
+    career.set_selection(&state.world, fixture_id, selection)
+}
+
 #[tauri::command]
 pub fn start_fixture(state: SharedState<'_>, fixture_id: u32) -> Result<MatchSnapshot, String> {
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;

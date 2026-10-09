@@ -4,12 +4,13 @@
 
 export type Format = "test" | "odi50" | "t20";
 
+// Data is snake_case from the Rust `Role` enum (see core/types.rs).
 export type Role =
-  | "Batter"
-  | "Wicketkeeper"
-  | "Allrounder"
-  | "PaceBowler"
-  | "SpinBowler";
+  | "batter"
+  | "wicketkeeper"
+  | "allrounder"
+  | "pace_bowler"
+  | "spin_bowler";
 
 export interface Skills {
   bat: number;
@@ -271,6 +272,7 @@ export interface CareerState {
   competition_id: number;
   fixtures: Fixture[];
   news: NewsItem[];
+  selections: Record<number, TeamSelection>;
   seed: number;
 }
 

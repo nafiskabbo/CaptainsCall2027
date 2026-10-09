@@ -112,6 +112,67 @@ body {
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+/* ---------- selection ---------- */
+.selection {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.selection__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.selection__head h2 {
+  margin: 0 0 0.2rem;
+}
+
+.selection__headactions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.selection__stats {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.8rem;
+}
+
+.pill--ok {
+  border-color: rgba(46, 163, 107, 0.5);
+  color: var(--accent);
+}
+
+.pill--warn {
+  border-color: rgba(240, 180, 41, 0.5);
+  color: var(--accent-2);
+}
+
+.btn--icon {
+  padding: 0.05rem 0.3rem;
+  font-size: 0.8rem;
+}
+
+.selection__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
 .shell {
   max-width: 820px;
   margin: 0 auto;

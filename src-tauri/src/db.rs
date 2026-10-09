@@ -72,6 +72,9 @@ pub struct CareerState {
     pub competition_id: u32,
     pub fixtures: Vec<Fixture>,
     pub news: Vec<NewsItem>,
+    /// Player's XI per fixture (fixture_id -> selection). Falls back to auto-pick.
+    #[serde(default)]
+    pub selections: std::collections::BTreeMap<u32, crate::match_::TeamSelection>,
     pub seed: u64,
 }
 
@@ -252,6 +255,7 @@ mod tests {
                 result: None,
             }],
             news: vec![],
+            selections: Default::default(),
             seed: 1,
         }
     }

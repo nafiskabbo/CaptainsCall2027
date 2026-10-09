@@ -208,6 +208,103 @@ fn table_sorting_puts_wins_on_top() {
 }
 
 #[test]
+fn player_selection_is_validated_and_used() {
+    use captains_call_2027_lib::match_::TeamSelection;
+
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "XI".into(), 31).unwrap();
+    let fixture = career.next_fixture().unwrap().clone();
+
+    let squad: Vec<u32> = world
+        .players
+        .iter()
+        .filter(|p| p.team_id == Some(team_id))
+        .take(11)
+        .map(|p| p.id)
+        .collect();
+
+    // Wrong count is rejected.
+    let short = TeamSelection {
+        team_id,
+        xi_ids: squad[0..10].to_vec(),
+        batting_order: squad[0..10].to_vec(),
+        keeper_id: None,
+    };
+    assert!(career.set_selection(&world, fixture.id, short).is_err());
+
+    // A full legal XI is accepted.
+    let mut order = squad.clone();
+    order.reverse();
+    let legal = TeamSelection {
+        team_id,
+        xi_ids: squad.clone(),
+        batting_order: order.clone(),
+        keeper_id: None,
+    };
+    career.set_selection(&world, fixture.id, legal).expect("legal XI accepted");
+    let stored = career.selection_for(&world, fixture.id).expect("stored");
+    assert_eq!(stored.batting_order, order, "player order must be honoured");
+
+    // And it is the XI that takes the field.
+    career.start_fixture(&world, fixture.id).unwrap();
+    let snap = career.live_snapshot().unwrap();
+    let in_xi: Vec<u32> = snap.innings[0]
+        .batting_cards
+        .iter()
+        .map(|c| c.player_id)
+        .collect();
+    let team_batted_first = snap.innings[0].batting_team_id;
+    if team_batted_first == team_id {
+        assert_eq!(in_xi, order, "player's batting order must be used");
+    }
+
+    // Duplicates are rejected.
+    let dupes = TeamSelection {
+        team_id,
+        xi_ids: vec![squad[0], squad[0], squad[1], squad[1], squad[2], squad[2], squad[3], squad[3], squad[4], squad[5], squad[6]],
+        batting_order: vec![squad[0], squad[0], squad[1], squad[1], squad[2], squad[2], squad[3], squad[3], squad[4], squad[5], squad[6]],
+        keeper_id: None,
+    };
+    assert!(career.set_selection(&world, fixture.id, dupes).is_err());
+}
+
+#[test]
+fn selections_survive_a_save_round_trip() {
+    use captains_call_2027_lib::db::CareerState;
+
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Persist".into(), 77).unwrap();
+    let fixture = career.next_fixture().unwrap().clone();
+    let squad: Vec<u32> = world
+        .players
+        .iter()
+        .filter(|p| p.team_id == Some(team_id))
+        .take(11)
+        .map(|p| p.id)
+        .collect();
+    career
+        .set_selection(
+            &world,
+            fixture.id,
+            captains_call_2027_lib::match_::TeamSelection {
+                team_id,
+                xi_ids: squad.clone(),
+                batting_order: squad.clone(),
+                keeper_id: None,
+            },
+        )
+        .unwrap();
+
+    // Serialize as saves do, then deserialize.
+    let json = serde_json::to_string(&career.state).unwrap();
+    let loaded: CareerState = serde_json::from_str(&json).unwrap();
+    assert_eq!(loaded.selections.len(), 1, "the saved XI must persist");
+    assert_eq!(loaded.selections.get(&fixture.id).unwrap().xi_ids, squad);
+}
+
+#[test]
 fn aggression_changes_outcomes() {
     let world = load_world();
     let (team_id, _comp) = playable_team();

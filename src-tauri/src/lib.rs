@@ -46,6 +46,8 @@ pub fn run() {
             commands::load_career,
             commands::delete_save,
             commands::advance_day,
+            commands::get_selection,
+            commands::set_selection,
             commands::start_fixture,
             commands::get_match,
             commands::set_match_input,

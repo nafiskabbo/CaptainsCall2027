@@ -37,6 +37,12 @@ export const api = {
   deleteSave: (id: number) => invoke<void>("delete_save", { id }),
   advanceDay: () => invoke<CareerView>("advance_day"),
 
+  // ---- selection ----
+  getSelection: (fixtureId: number) =>
+    invoke<TeamSelection>("get_selection", { fixtureId }),
+  setSelection: (fixtureId: number, selection: TeamSelection) =>
+    invoke<void>("set_selection", { fixtureId, selection }),
+
   // ---- live match ----
   startFixture: (fixtureId: number) => invoke<MatchSnapshot>("start_fixture", { fixtureId }),
   getMatch: () => invoke<MatchSnapshot | null>("get_match"),
