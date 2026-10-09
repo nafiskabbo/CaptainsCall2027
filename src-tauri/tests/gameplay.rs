@@ -1,0 +1,233 @@
+//! End-to-end gameplay tests: the same code path the React UI drives.
+//!
+//! These follow the career flow (start career → play fixture → record result →
+//! table updates) against the bundled fictional 2027 world. A green run means
+//! the playable build works.
+
+use captains_call_2027_lib::career::{simulate_fixture, Career};
+use captains_call_2027_lib::core::scheduler::table_for;
+
+use captains_call_2027_lib::match_::state::MatchPhase;
+use captains_call_2027_lib::world::load_world;
+
+/// A domestic team with a full competition schedule.
+fn playable_team() -> (u32, u32) {
+    let world = load_world();
+    let comp = world
+        .competitions
+        .iter()
+        .find(|c| c.team_ids.len() >= 4)
+        .or_else(|| world.competitions.iter().find(|c| c.team_ids.len() >= 3))
+        .or_else(|| world.competitions.first())
+        .expect("expected at least one competition");
+    let team_id = comp.team_ids[0];
+    (team_id, comp.id)
+}
+
+#[test]
+fn bundled_world_is_valid() {
+    let world = load_world();
+    assert!(world.db_version.starts_with("2027"), "db_version: {}", world.db_version);
+    assert!(world.players.len() >= 100, "players: {}", world.players.len());
+    assert!(world.nations.len() >= 6, "nations: {}", world.nations.len());
+    assert!(!world.competitions.is_empty(), "competitions missing");
+    for t in &world.teams {
+        assert!(
+            !t.is_national && t.squad_ids.len() >= 11 || t.is_national,
+            "team {} has only {} players",
+            t.name,
+            t.squad_ids.len()
+        );
+    }
+}
+
+#[test]
+fn career_starts_with_full_fixture_list() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let career = Career::start(&world, team_id, "Test career".into(), 20270101)
+        .expect("career should start");
+
+    let comp_size = world
+        .competitions
+        .iter()
+        .find(|c| c.id == career.state.competition_id)
+        .unwrap()
+        .team_ids
+        .len();
+    let expected = (comp_size * (comp_size - 1)) / 2;
+    assert_eq!(career.state.fixtures.len(), expected as usize, "round robin size");
+    assert!(career.state.db_version.starts_with("2027"));
+    assert!(career.state.news.len() >= 1);
+
+    // The player's team plays every round exactly once.
+    let mine = career.player_fixtures();
+    assert_eq!(mine.len(), comp_size - 1);
+}
+
+#[test]
+fn playing_a_fixture_records_the_result() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Test career".into(), 4242).unwrap();
+    let fixture_id = career.next_fixture().expect("a fixture to play").id;
+
+    let snap = career.start_fixture(&world, fixture_id).unwrap();
+    assert_eq!(snap.phase, MatchPhase::Innings1);
+    assert_eq!(snap.innings.len(), 1);
+
+    // Play it out ball by ball via the career API.
+    for _ in 0..3 {
+        let s = career.advance(60);
+        if s.phase == MatchPhase::Complete {
+            break;
+        }
+    }
+    career.advance_innings();
+    career.advance_innings();
+
+    let fixture = career
+        .state
+        .fixtures
+        .iter()
+        .find(|f| f.id == fixture_id)
+        .unwrap();
+    assert!(fixture.result.is_some(), "fixture must be scored once complete");
+
+    // Career news should mention the player's team result.
+    assert!(
+        career.state.news.iter().any(|n| n.headline.contains("Win!")
+            || n.headline.contains("Defeat")
+            || n.headline.contains("Tie")),
+        "playing your own match should produce career news"
+    );
+
+    // The table must reflect the played match.
+    let table = career.table(&world);
+    let played: u32 = table.iter().map(|r| r.played).sum();
+    assert!(played >= 2, "table should count the played match");
+}
+
+#[test]
+fn ai_fixture_simulation_scores_matches() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Sim career".into(), 1).unwrap();
+    let news = career.advance_day(&world);
+    let played = career
+        .state
+        .fixtures
+        .iter()
+        .filter(|f| f.result.is_some())
+        .count();
+    assert!(played > 0, "advancing a day should simulate matches");
+    assert!(!news.is_empty() || played > 0);
+
+    // Determinism: same seed + fixture → same result.
+    let fixture = career
+        .state
+        .fixtures
+        .iter()
+        .find(|f| f.home_id != team_id && f.away_id != team_id)
+        .cloned()
+        .unwrap_or_else(|| career.state.fixtures[0].clone());
+    let a = simulate_fixture(&world, &fixture, 777).unwrap();
+    let b = simulate_fixture(&world, &fixture, 777).unwrap();
+    assert_eq!(a.home_runs, b.home_runs, "same seed must repeat the match");
+    assert_eq!(a.summary, b.summary);
+}
+
+#[test]
+fn season_completes_when_all_fixtures_played() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Season".into(), 5).unwrap();
+    for _ in 0..200 {
+        if career.season_complete() {
+            break;
+        }
+        // Play the player's fixture if it's up.
+        if let Some(f) = career.next_fixture().cloned() {
+            career.start_fixture(&world, f.id).unwrap();
+            career.advance_innings();
+            career.advance_innings();
+        } else {
+            career.advance_day(&world);
+        }
+    }
+    assert!(
+        career.season_complete(),
+        "season should finish after all fixtures are played"
+    );
+    let table = career.table(&world);
+    let total_played: u32 = table.iter().map(|r| r.played).sum();
+    assert_eq!(total_played as usize, career.state.fixtures.len() * 2);
+}
+
+#[test]
+fn scorecard_export_is_standalone_html() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Card".into(), 7).unwrap();
+    let fixture = career.next_fixture().unwrap().clone();
+    career.start_fixture(&world, fixture.id).unwrap();
+    career.advance_innings();
+    career.advance_innings();
+    let html = captains_call_2027_lib::commands::almanack::scorecard_html(
+        &career.live_snapshot().unwrap(),
+        &world,
+    );
+    assert!(html.starts_with("<!doctype html>"));
+    assert!(html.contains("Bowler"));
+    assert!(html.contains("Batter"));
+}
+
+#[test]
+fn table_sorting_puts_wins_on_top() {
+    // Two teams, two matches: team 1 wins both.
+    let world = load_world();
+    let (team_id, comp_id) = playable_team();
+    let mut career = Career::start(&world, team_id, "Sort".into(), 3).unwrap();
+    let comp = world.competitions.iter().find(|c| c.id == comp_id).unwrap();
+    let (a, b) = (comp.team_ids[0], comp.team_ids[1]);
+    for f in career.state.fixtures.iter_mut() {
+        if f.home_id == a && f.away_id == b {
+            f.result = Some(captains_call_2027_lib::core::scheduler::FixtureResult {
+                home_runs: 200,
+                away_runs: 100,
+                home_wickets: 3,
+                away_wickets: 10,
+                winner_id: Some(a),
+                summary: "A won".into(),
+            });
+        }
+    }
+    let table = table_for(&comp.team_ids, &career.state.fixtures);
+    assert_eq!(table[0].team_id, a, "winner should top the table");
+    assert_eq!(table[0].points, 2);
+}
+
+#[test]
+fn aggression_changes_outcomes() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+
+    let mut calm = Career::start(&world, team_id, "calm".into(), 555).unwrap();
+    let mut wild = Career::start(&world, team_id, "wild".into(), 555).unwrap();
+
+    let fixture = calm.next_fixture().unwrap().clone();
+    calm.start_fixture(&world, fixture.id).unwrap();
+    wild.start_fixture(&world, fixture.id).unwrap();
+    if let Some(live) = calm.live.as_mut() {
+        live.sim.input.batting_aggression = 5;
+    }
+    if let Some(live) = wild.live.as_mut() {
+        live.sim.input.batting_aggression = 95;
+    }
+
+    let calm_snap = calm.advance(600);
+    let wild_snap = wild.advance(600);
+    let calm_score = calm_snap.innings.first().map(|i| i.runs).unwrap_or(0);
+    let wild_score = wild_snap.innings.first().map(|i| i.runs).unwrap_or(0);
+    assert_ne!(calm_score, wild_score, "aggression should change the scoreline");
+}

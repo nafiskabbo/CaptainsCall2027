@@ -1,34 +1,58 @@
-//! Captain's Call 2027 core library.
+//! Captain's Call 2027 — Rust core.
 //!
-//! Tauri entry point. The deterministic match engine (`core/`), save layer
-//! and versioned-DB layer will live here as M0–M1 land.
+//! Modules:
+//! - `core`: world data types + deterministic RNG/stats.
+//! - `match_`: 2D cricket match simulation engine and live match state.
+//! - `commands`: Tauri command surface used by the React UI.
+//! - `world`: bundled fictional 2027 database.
+//!
+//! `name` (2D only, no 3D).
 
-use serde::Serialize;
+pub mod commands;
+pub mod core;
+pub mod match_;
+pub mod db;
+pub mod career;
+pub mod world;
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AppInfo {
-    name: &'static str,
-    version: &'static str,
-    phase: &'static str,
-}
+#[cfg(test)]
+mod tests;
 
-/// Placeholder command proving the UI ↔ Rust bridge works.
-/// Real commands (sim tick, save/load, DB update) arrive in M0–M1.
-#[tauri::command]
-fn get_app_info() -> AppInfo {
-    AppInfo {
-        name: "Captain's Call 2027",
-        version: env!("CARGO_PKG_VERSION"),
-        phase: "M0 scaffold",
-    }
-}
+pub use core::types::{
+    Competition, CompetitionKind, Format, Ground, Nation, Player, Rating, Role, Skills, Team, World,
+};
+pub use world::{load_world, DB_VERSION};
+
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_app_info])
+        .setup(|app| {
+            app.manage(commands::init_state());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_app_info,
+            commands::get_world,
+            commands::get_db_version,
+            commands::get_squad,
+            commands::auto_select,
+            commands::start_career,
+            commands::get_career,
+            commands::save_career,
+            commands::list_saves,
+            commands::load_career,
+            commands::delete_save,
+            commands::advance_day,
+            commands::start_fixture,
+            commands::get_match,
+            commands::set_match_input,
+            commands::sim_match,
+            commands::sim_innings,
+            commands::export_scorecard,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

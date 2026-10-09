@@ -16,8 +16,9 @@ tauri = { version = "2", features = [] }
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
 # M1+: deterministic RNG (e.g. rand + StdRng with explicit seeds)
-# M0/M5: rusqlite or sqlx for saves + versioned DB
+# M5: rusqlite (above) backs saves + the versioned DB store
 # M6: minisign/ed25519-dalek for DB manifest verification
 
 [features]

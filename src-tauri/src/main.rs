@@ -1,4 +1,4 @@
-//! Binary entry point — delegates to the library (Tauri v2 pattern).
+//! Binary entry point — delegates to the library.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 

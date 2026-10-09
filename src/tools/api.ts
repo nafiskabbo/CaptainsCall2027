@@ -1,0 +1,49 @@
+//! Typed wrappers around the Tauri command surface.
+//!
+//! Rust is authoritative; this is the only module that talks to it.
+
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  AppInfo,
+  CareerView,
+  Format,
+  MatchInput,
+  MatchSnapshot,
+  Player,
+  SaveSummary,
+  TeamSelection,
+  World,
+} from "../types";
+
+export const api = {
+  getAppInfo: () => invoke<AppInfo>("get_app_info"),
+  getWorld: () => invoke<World>("get_world"),
+  getDbVersion: () => invoke<string>("get_db_version"),
+  getSquad: (teamId: number) => invoke<Player[]>("get_squad", { teamId }),
+  autoSelect: (teamId: number, format: Format) =>
+    invoke<TeamSelection>("auto_select", { teamId, format }),
+
+  // ---- career ----
+  startCareer: (args: { name: string; teamId: number; seed: number }) =>
+    invoke<CareerView>("start_career", {
+      name: args.name,
+      teamId: args.teamId,
+      seed: args.seed,
+    }),
+  getCareer: () => invoke<CareerView>("get_career"),
+  saveCareer: () => invoke<number>("save_career"),
+  listSaves: () => invoke<SaveSummary[]>("list_saves"),
+  loadCareer: (id: number) => invoke<CareerView>("load_career", { id }),
+  deleteSave: (id: number) => invoke<void>("delete_save", { id }),
+  advanceDay: () => invoke<CareerView>("advance_day"),
+
+  // ---- live match ----
+  startFixture: (fixtureId: number) => invoke<MatchSnapshot>("start_fixture", { fixtureId }),
+  getMatch: () => invoke<MatchSnapshot | null>("get_match"),
+  setMatchInput: (input: MatchInput) => invoke<void>("set_match_input", { input }),
+  /** Advance `count` deliveries and return the new snapshot. */
+  simMatch: (count: number) => invoke<MatchSnapshot>("sim_match", { count }),
+  /** Fast-forward to the end of the current innings. */
+  simInnings: () => invoke<MatchSnapshot>("sim_innings"),
+  exportScorecard: () => invoke<string>("export_scorecard"),
+};

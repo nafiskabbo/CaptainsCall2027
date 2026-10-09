@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://captainscall2027/schemas/world.schema.json",
+  "title": "Captain's Call 2027 fictional world database",
+  "description": "First-party shipped data. Fictional names only — real league/team names and trademarks are not permitted (specs DR-1).",
+  "type": "object",
+  "required": ["schema_version", "db_version", "nations", "teams", "players", "grounds", "competitions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "db_version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]+$" },
+    "nations": { "type": "array", "items": { "$ref": "#/definitions/nation" } },
+    "teams": { "type": "array", "items": { "$ref": "#/definitions/team" } },
+    "players": { "type": "array", "items": { "$ref": "#/definitions/player" } },
+    "grounds": { "type": "array", "items": { "$ref": "#/definitions/ground" } },
+    "competitions": { "type": "array", "items": { "$ref": "#/definitions/competition" } }
+  },
+  "definitions": {
+    "rating": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 99,
+      "description": "Skill rating, 1-99. Values outside the band are clamped by the engine."
+    },
+    "skills": {
+      "type": "object",
+      "required": ["bat", "test_bat", "odi_bat", "t20_bat", "defence", "pace", "spin", "odi_bowl", "t20_bowl", "fielding", "keeping", "leadership"],
+      "additionalProperties": false,
+      "properties": {
+        "bat": { "$ref": "#/definitions/rating" },
+        "test_bat": { "$ref": "#/definitions/rating" },
+        "odi_bat": { "$ref": "#/definitions/rating" },
+        "t20_bat": { "$ref": "#/definitions/rating" },
+        "defence": { "$ref": "#/definitions/rating" },
+        "pace": { "$ref": "#/definitions/rating" },
+        "spin": { "$ref": "#/definitions/rating" },
+        "odi_bowl": { "$ref": "#/definitions/rating" },
+        "t20_bowl": { "$ref": "#/definitions/rating" },
+        "fielding": { "$ref": "#/definitions/rating" },
+        "keeping": { "$ref": "#/definitions/rating" },
+        "leadership": { "$ref": "#/definitions/rating" }
+      }
+    },
+    "nation": {
+      "type": "object",
+      "required": ["id", "name", "short_name", "strength", "has_test_status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 2 },
+        "short_name": { "type": "string", "minLength": 2, "maxLength": 4 },
+        "strength": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "has_test_status": { "type": "boolean" }
+      }
+    },
+    "team": {
+      "type": "object",
+      "required": ["id", "name", "nation_id", "home_ground_id", "budget", "reputation", "squad_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 2 },
+        "nation_id": { "type": "integer", "minimum": 1 },
+        "home_ground_id": { "type": "integer", "minimum": 1 },
+        "budget": { "type": "integer", "minimum": 0, "description": "Whole currency units — floats are rejected by the engine." },
+        "reputation": { "$ref": "#/definitions/rating" },
+        "squad_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "is_national": { "type": "boolean", "default": false }
+      }
+    },
+    "player": {
+      "type": "object",
+      "required": ["id", "name", "nation_id", "age", "role", "batting_style", "skills", "fitness", "morale", "experience"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 3 },
+        "nation_id": { "type": "integer", "minimum": 1 },
+        "team_id": { "type": ["integer", "null"], "minimum": 1 },
+        "age": { "type": "integer", "minimum": 16, "maximum": 55 },
+        "role": { "enum": ["batter", "wicketkeeper", "allrounder", "pace_bowler", "spin_bowler"] },
+        "batting_style": { "enum": ["rhb", "lhb"] },
+        "bowling_style": {
+          "type": ["string", "null"],
+          "enum": ["right-arm fast", "right-arm fast-medium", "left-arm fast", "left-arm medium", "off-spin", "leg-spin", "left-arm orthodox", "left-arm wrist spin", null]
+        },
+        "skills": { "$ref": "#/definitions/skills" },
+        "potential": { "$ref": "#/definitions/skills" },
+        "form": { "type": "integer", "minimum": -10, "maximum": 10 },
+        "fitness": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "morale": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "experience": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ground": {
+      "type": "object",
+      "required": ["id", "name", "nation_id", "boundary_m", "batting_friendly", "day_night"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 2 },
+        "nation_id": { "type": "integer", "minimum": 1 },
+        "boundary_m": { "type": "integer", "minimum": 55, "maximum": 95 },
+        "batting_friendly": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "day_night": { "type": "boolean" }
+      }
+    },
+    "competition": {
+      "type": "object",
+      "required": ["id", "name", "nation_id", "format", "kind", "team_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 2 },
+        "nation_id": { "type": "integer", "minimum": 1 },
+        "format": { "enum": ["test", "odi50", "t20"] },
+        "kind": { "enum": ["league", "knockout_cup", "series", "tour"] },
+        "team_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 2 },
+        "days_per_match": { "type": "integer", "minimum": 1, "maximum": 5, "default": 1 }
+      }
+    }
+  }
+}

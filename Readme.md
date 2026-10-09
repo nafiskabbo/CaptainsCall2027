@@ -67,10 +67,40 @@ This stack is ideal for AI-only development: Rust core has strict types/tests, f
 - Season sim must stay interactive; full holiday sim < seconds on modest hardware (target defined in specs).
 - SQLite indexed; no N+1 queries; engine has zero UI blocking (worker / Rust async).
 
+## Run it
+
+```bash
+npm install
+npm run tauri:dev     # desktop app (Rust core + React UI)
+```
+
+Useful scripts:
+
+```bash
+npm run generate:world   # regenerate the fictional 2027 database
+npm run validate:world   # validate data/world.json against data/schema
+npm test                # TypeScript check
+cargo test --manifest-path src-tauri/Cargo.toml   # engine + gameplay tests
+```
+
+## Architecture
+
+- `src-tauri/src/core/` — world types + deterministic RNG.
+- `src-tauri/src/match_/` — ball resolution, innings/match state, Test follow-on logic.
+- `src-tauri/src/commands/` — the UI command surface (`get_world`, `start_match`, `sim_match`, `sim_innings`, `export_scorecard`).
+- `src/screens/` — React screens (setup, 2D match view, controls, scorecards).
+
 ## Status
 
-Pre-code. Specs + plan only. See `tasks.plan.md`.
+**G0 and G1 playable** — `npm run tauri:dev` gives you the full loop: pick a fictional
+domestic side, generate the season, play your fixtures ball-by-ball with the 2D overhead
+view and in-match orders, auto-sim the rest of the competition, watch the table and news
+update, save/load careers.
+
+Next up (G2 career management): squad selection UI, budgets/bidding, U19/2nd XI,
+training/retirements, international FTP + World Challenge, franchise auction.
+See `tasks.plan.md`.
 
 ## License
 
-MIT — see `LICENSE`. Original game assets/names/stats belong to their owners; our DB uses publicly known player names/stats, no copied assets.
+MIT — see `LICENSE`. Original game assets/names/stats belong to their owners; our DB uses fictional player names only (see `data/README.md`).
