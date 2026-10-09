@@ -192,6 +192,7 @@ export default function CareerScreen({
                     .filter((f) => f.day === day)
                     .filter((f) => (filter === "mine" ? f.home_id === myTeamId || f.away_id === myTeamId : true))
                     .map((f) => {
+                      // International programme: show the stage alongside the teams.
                       const mine = f.home_id === myTeamId || f.away_id === myTeamId;
                       const playable = mine && f.result === null;
                       return (
@@ -204,7 +205,7 @@ export default function CareerScreen({
                           title={playable ? "Play this match" : undefined}
                         >
                           <span className="fixturerow__team">{teamName(world, f.home_id)}</span>
-                          <span className="fixturerow__vs">vs</span>
+                          <span className="fixturerow__vs">{f.stage ?? "vs"}</span>
                           <span className="fixturerow__team fixturerow__team--away">
                             {teamName(world, f.away_id)}
                           </span>

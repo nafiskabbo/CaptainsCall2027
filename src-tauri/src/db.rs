@@ -265,6 +265,7 @@ mod tests {
                 ground_id: 1,
                 day: 1,
                 round: 0,
+                stage: None,
                 result: None,
             }],
             news: vec![],
@@ -348,6 +349,7 @@ mod tests {
             ground_id: 1,
             day: 1,
             round: 0,
+            stage: None,
             result: None,
         });
         let quiet = record_result(&mut other, 11, FixtureResult {

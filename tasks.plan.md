@@ -123,7 +123,7 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 
 - [x] P5.1 Off-season: budget + wage bill, transfer pool with reputation gate, bidding (accepts at/above wage), releases (min XI guard)
 - [ ] P5.2 U19/2nd XI pipeline + training + form/fitness/injuries + retirements/regen
-- [ ] P5.3 International FTP + World Challenge tournaments + rankings
+- [x] P5.3 International: World Challenge T20 cup (4 groups + semis + final), bilateral series (ODI + Test tours), group tables, national careers
 - [ ] P5.4 Franchise auction (IPL/BPL-style genericised) + assistant delegation
 
 ## M6 — Update infra & release

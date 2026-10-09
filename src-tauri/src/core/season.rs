@@ -85,6 +85,89 @@ pub fn roll_season(
     state.budget = Some(budget_refresh);
 
     // 5. Fresh fixtures.
+    let is_international = world
+        .teams
+        .iter()
+        .find(|t| t.id == state.player_team_id)
+        .map(|t| t.is_national)
+        .unwrap_or(false);
+    if is_international {
+        let ground_of = |id: u32| {
+            world
+                .teams
+                .iter()
+                .find(|t| t.id == id)
+                .map(|t| t.home_ground_id)
+                .unwrap_or(1)
+        };
+        use crate::core::tournaments;
+        let nations: Vec<u32> = world
+            .teams
+            .iter()
+            .filter(|t| t.is_national)
+            .map(|t| t.id)
+            .collect();
+        let cup =
+            tournaments::world_cup_fixtures(&nations, Format::T20, ground_of, 1, seed);
+        let mut day = cup.iter().map(|e| e.fixture.day).max().unwrap_or(40) + 7;
+        state.fixtures = Vec::new();
+        for entry in &cup {
+            if entry.fixture.home_id == state.player_team_id
+                || entry.fixture.away_id == state.player_team_id
+            {
+                let mut fixture = entry.fixture.clone();
+                fixture.stage = Some(entry.stage.label());
+                state.fixtures.push(fixture);
+            }
+        }
+        for (i, other) in nations
+            .iter()
+            .filter(|id| **id != state.player_team_id)
+            .take(2)
+            .enumerate()
+        {
+            let format = if i == 0 { Format::Odi50 } else { Format::Test };
+            let matches = if format == Format::Test { 2 } else { 3 };
+            let series = tournaments::series_fixtures(
+                state.player_team_id,
+                *other,
+                format,
+                matches,
+                ground_of,
+                day,
+                91_000 + i as u32,
+                950_000 + (i as u32) * 10,
+            );
+            state.fixtures.extend(series.into_iter().map(|e| {
+                let mut fixture = e.fixture;
+                fixture.stage = Some(e.stage.label());
+                fixture
+            }));
+            day += matches * 4 + 3;
+        }
+        for f in state.fixtures.iter_mut() {
+            if f.home_id == 0 {
+                f.home_id = state.player_team_id;
+            }
+            if f.away_id == 0 {
+                if let Some(other) = nations.iter().find(|id| **id != state.player_team_id) {
+                    f.away_id = *other;
+                }
+            }
+        }
+        state.fixtures.sort_by_key(|f| f.day);
+        state.competition_id = 90_000;
+        let count = state.fixtures.len();
+        state.season_day = 1;
+        return OffSeasonReport {
+            retired,
+            intake,
+            promoted: Vec::new(),
+            budget_refresh,
+            new_season_fixtures: count,
+        };
+    }
+
     let competition = world
         .competitions
         .iter()
@@ -313,6 +396,7 @@ mod tests {
                 ground_id: 1,
                 day: 1,
                 round: 0,
+                stage: None,
                 result: None,
             }],
             news: vec![],

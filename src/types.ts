@@ -241,6 +241,8 @@ export interface Fixture {
   ground_id: number;
   day: number;
   round: number;
+  /** International stage label ("Group A", "Semi-final", "1st Test"); null for leagues. */
+  stage: string | null;
   result: FixtureResult | null;
 }
 

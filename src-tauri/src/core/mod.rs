@@ -9,6 +9,7 @@ pub mod skills;
 pub mod rng;
 pub mod season;
 pub mod transfers;
+pub mod tournaments;
 pub mod scheduler;
 pub mod types;
 

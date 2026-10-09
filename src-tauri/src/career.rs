@@ -55,14 +55,6 @@ impl Career {
             .cloned()
             .ok_or_else(|| format!("team {team_id} not found"))?;
 
-        // Pick the first competition covering this team; default: a new T20 cup.
-        let competition = world
-            .competitions
-            .iter()
-            .find(|c| c.team_ids.contains(&team_id))
-            .cloned()
-            .ok_or_else(|| "no competition found for this team".to_string())?;
-
         let ground_of = |id: u32| {
             world
                 .teams
@@ -71,7 +63,30 @@ impl Career {
                 .map(|t| t.home_ground_id)
                 .unwrap_or(1)
         };
-        let fixtures = scheduler::round_robin_fixtures(&competition, 1, ground_of, seed);
+
+        // National sides run an international programme; clubs run the league.
+        let international = team.is_national;
+        let fixtures: Vec<Fixture> = if international {
+            build_international_programme(world, team_id, seed)
+        } else {
+            let competition = world
+                .competitions
+                .iter()
+                .find(|c| c.team_ids.contains(&team_id))
+                .cloned()
+                .ok_or_else(|| "no competition found for this team".to_string())?;
+            scheduler::round_robin_fixtures(&competition, 1, ground_of, seed)
+        };
+        let competition_id = if international {
+            90_000
+        } else {
+            world
+                .competitions
+                .iter()
+                .find(|c| c.team_ids.contains(&team_id))
+                .map(|c| c.id)
+                .unwrap_or(0)
+        };
 
         let state = crate::db::CareerState {
             id: None,
@@ -81,7 +96,7 @@ impl Career {
             nation_id: team.nation_id,
             season_day: 1,
             db_version: DB_VERSION.to_string(),
-            competition_id: competition.id,
+            competition_id,
             fixtures,
             news: vec![NewsItem {
                 day: 1,
@@ -542,6 +557,83 @@ mod match_orders {
         }
     }
 
+}
+
+/// A national team's programme: a World Challenge cup plus bilateral tours.
+///
+/// Groups are seeded so the player's nation plays a mix of strong and weak
+/// opposition, which is what makes the minnow-weighting interesting.
+fn build_international_programme(world: &World, team_id: u32, seed: u64) -> Vec<Fixture> {
+    use crate::core::tournaments;
+
+    let nations: Vec<u32> = world
+        .teams
+        .iter()
+        .filter(|t| t.is_national)
+        .map(|t| t.id)
+        .collect();
+    let ground_of = |id: u32| {
+        world
+            .teams
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.home_ground_id)
+            .unwrap_or(1)
+    };
+
+    let mut out: Vec<Fixture> = Vec::new();
+
+    // 1. World Challenge T20 cup (groups + knockouts).
+    let cup = tournaments::world_cup_fixtures(&nations, Format::T20, ground_of, 1, seed);
+    for entry in &cup {
+        // Only schedule games the player's nation plays, plus one track of the
+        // rest so the competition still resolves around them.
+        if entry.fixture.home_id == team_id || entry.fixture.away_id == team_id {
+            out.push(entry.fixture.clone());
+        }
+    }
+
+    // 2. Bilateral series after the cup.
+    let mut day = cup.iter().map(|e| e.fixture.day).max().unwrap_or(40) + 7;
+    for (i, other) in nations.iter().filter(|id| **id != team_id).take(2).enumerate() {
+        let format = if i == 0 { Format::Odi50 } else { Format::Test };
+        let matches = if format == Format::Test { 2 } else { 3 };
+        let series = tournaments::series_fixtures(
+            team_id,
+            *other,
+            format,
+            matches,
+            ground_of,
+            day,
+            91_000 + i as u32,
+            950_000 + (i as u32) * 10,
+        );
+        out.extend(series.into_iter().map(|e| e.fixture));
+        day += matches * tournaments_days(format) + 3;
+    }
+
+    // Every game is against them or the cup winner — but knockouts need a
+    // home/away even before qualifiers are known, so fill the player in.
+    for f in out.iter_mut() {
+        if f.home_id == 0 || f.away_id == 0 {
+            if f.home_id == 0 {
+                f.home_id = team_id;
+            }
+            if f.away_id == 0 {
+                f.away_id = *nations.iter().find(|id| **id != team_id).unwrap_or(&team_id);
+            }
+        }
+    }
+    out.sort_by_key(|f| f.day);
+    out
+}
+
+fn tournaments_days(format: Format) -> u32 {
+    match format {
+        Format::Test => 7,
+        Format::Odi50 => 3,
+        Format::T20 => 2,
+    }
 }
 
 /// Simulate a fixture end-to-end and score it.

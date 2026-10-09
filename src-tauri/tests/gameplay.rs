@@ -407,3 +407,46 @@ fn players_develop_through_a_season_of_matches() {
     assert_eq!(restored_player.experience, after.experience);
     assert_eq!(restored_player.skills.bat, after.skills.bat);
 }
+
+#[test]
+fn international_career_schedules_cup_and_tours() {
+    let world = load_world();
+    let nation_team = world
+        .teams
+        .iter()
+        .find(|t| t.is_national)
+        .expect("a national side");
+    let mut career = Career::start(&world, nation_team.id, "World boss".into(), 31).unwrap();
+
+    let fixture_count = career.state.fixtures.len();
+    assert!(fixture_count > 3, "an international programme should be non-trivial");
+    // Every fixture involves your nation.
+    for f in &career.state.fixtures {
+        assert!(
+            f.home_id == nation_team.id || f.away_id == nation_team.id,
+            "international careers should only schedule your own games"
+        );
+    }
+    // And the squad comes from the whole nation.
+    let squad: Vec<_> = career
+        .players
+        .iter()
+        .filter(|p| p.nation_id == nation_team.nation_id)
+        .collect();
+    assert!(squad.len() >= 11, "national pool must field an XI");
+
+    // Play the first fixture.
+    let first = career.state.fixtures[0].id;
+    career.start_fixture(&world, first).unwrap();
+    career.advance_innings();
+    career.advance_innings();
+    assert!(career.state.fixtures[0].result.is_some(), "first game scores");
+
+    // Off-season should keep producing an international programme.
+    career.state.season = 1;
+    captains_call_2027_lib::core::season::roll_season(&mut career.state, &world, 1);
+    assert!(career.state.fixtures.len() > 3, "season 2 has fixtures");
+    for f in &career.state.fixtures {
+        assert!(f.home_id == nation_team.id || f.away_id == nation_team.id);
+    }
+}

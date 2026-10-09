@@ -16,6 +16,9 @@ pub struct Fixture {
     /// Season day (1-based) the match starts on.
     pub day: u32,
     pub round: u32,
+    /// International stage label ("Group A", "Semi-final", "1st Test"); None for leagues.
+    #[serde(default)]
+    pub stage: Option<String>,
     /// Set once simulated: (home runs, away runs, winner).
     pub result: Option<FixtureResult>,
 }
@@ -100,6 +103,7 @@ pub fn round_robin_fixtures(
                 ground_id: ground_of(home),
                 day: start_day + (round as u32) * days_between(competition.format),
                 round: round as u32,
+                stage: None,
                 result: None,
             });
             id += 1;
@@ -145,6 +149,7 @@ pub fn knockout_fixtures(
                 ground_id: ground_of(remaining[i]),
                 day,
                 round,
+                stage: None,
                 result: None,
             });
             id += 1;
@@ -276,6 +281,7 @@ mod tests {
                 ground_id: 1,
                 day: 1,
                 round: 0,
+                stage: None,
                 result: None,
             },
             Fixture {
@@ -287,6 +293,7 @@ mod tests {
                 ground_id: 1,
                 day: 3,
                 round: 1,
+                stage: None,
                 result: None,
             },
         ];
