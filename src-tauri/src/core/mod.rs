@@ -10,6 +10,7 @@ pub mod records;
 pub mod rng;
 pub mod season;
 pub mod transfers;
+pub mod updater;
 pub mod tournaments;
 pub mod scheduler;
 pub mod types;

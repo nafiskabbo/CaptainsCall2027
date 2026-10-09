@@ -444,6 +444,152 @@ pub fn export_scorecard(state: SharedState<'_>) -> Result<String, String> {
     ))
 }
 
+// ---------------- database update channel ----------------
+
+/// Current update settings and the installed db version.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStateView {
+    pub installed: String,
+    pub settings: crate::core::updater::UpdateSettings,
+    /// What the user would be offered right now, if they asked.
+    pub status: UpdateStatusView,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "kind")]
+pub enum UpdateStatusView {
+    UpToDate { installed: String },
+    Available {
+        version: String,
+        changelog: String,
+        bytes: u64,
+        channel: String,
+    },
+    Unreachable { installed: String },
+    Rejected { installed: String, reason: String },
+}
+
+impl From<crate::core::updater::UpdateStatus> for UpdateStatusView {
+    fn from(status: crate::core::updater::UpdateStatus) -> Self {
+        use crate::core::updater::UpdateStatus as S;
+        match status {
+            S::UpToDate { installed } => UpdateStatusView::UpToDate { installed },
+            S::Available { manifest, .. } => UpdateStatusView::Available {
+                version: manifest.db_version.clone(),
+                changelog: manifest.changelog.clone(),
+                bytes: manifest.bytes,
+                channel: manifest.channel.label().to_string(),
+            },
+            S::Unreachable { installed } => UpdateStatusView::Unreachable { installed },
+            S::Rejected { installed, reason } => UpdateStatusView::Rejected { installed, reason },
+            S::ChannelMismatch => UpdateStatusView::Rejected {
+                installed: String::new(),
+                reason: "channel mismatch".into(),
+            },
+        }
+    }
+}
+
+/// Update settings live next to the saves so they persist.
+fn settings_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("update-settings.json"))
+}
+
+fn load_settings(app: &tauri::AppHandle) -> crate::core::updater::UpdateSettings {
+    let Ok(path) = settings_path(app) else {
+        return Default::default();
+    };
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_settings(
+    app: &tauri::AppHandle,
+    settings: &crate::core::updater::UpdateSettings,
+) -> Result<(), String> {
+    let path = settings_path(app)?;
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())
+}
+
+/// Toggle the update check and switch channel.
+#[tauri::command]
+pub fn set_update_settings(
+    app: tauri::AppHandle,
+    enabled: bool,
+    channel: Option<String>,
+) -> Result<UpdateStateView, String> {
+    let mut settings = load_settings(&app);
+    settings.check_for_updates = enabled;
+    if let Some(channel) = channel {
+        settings.channel = match channel.as_str() {
+            "beta" => crate::core::updater::UpdateChannel::Beta,
+            "local" => crate::core::updater::UpdateChannel::Local,
+            _ => crate::core::updater::UpdateChannel::Stable,
+        };
+    }
+    save_settings(&app, &settings)?;
+    Ok(UpdateStateView {
+        installed: crate::world::DB_VERSION.to_string(),
+        settings,
+        status: UpdateStatusView::UpToDate {
+            installed: crate::world::DB_VERSION.to_string(),
+        },
+    })
+}
+
+/// Read the current state of the update channel.
+#[tauri::command]
+pub fn get_update_state(app: tauri::AppHandle) -> Result<UpdateStateView, String> {
+    let settings = load_settings(&app);
+    Ok(UpdateStateView {
+        installed: crate::world::DB_VERSION.to_string(),
+        settings,
+        status: UpdateStatusView::UpToDate {
+            installed: crate::world::DB_VERSION.to_string(),
+        },
+    })
+}
+
+/// Check a local manifest file (the offline-safe way to exercise this flow).
+///
+/// A feed URL fetch needs the HTTP permission and a real signature key, which
+/// is M6.3; this covers the local-file channel today and validates the same
+/// rules the remote path will use.
+#[tauri::command]
+pub fn check_local_update(
+    app: tauri::AppHandle,
+    manifest_path: String,
+) -> Result<UpdateStateView, String> {
+    let settings = load_settings(&app);
+    let json = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("could not read manifest: {e}"))?;
+    let manifest: crate::core::updater::DbManifest =
+        serde_json::from_str(&json).map_err(|e| format!("manifest is not valid JSON: {e}"))?;
+    let _installed = crate::world::DB_VERSION;
+
+    let status = crate::core::updater::evaluate_update(
+        crate::world::DB_VERSION,
+        Some(&manifest),
+        &settings,
+        true,
+    );
+    Ok(UpdateStateView {
+        installed: crate::world::DB_VERSION.to_string(),
+        settings,
+        status: status.into(),
+    })
+}
+
 // ---------------- helpers ----------------
 
 fn build_view(career: &Career, world: &World) -> CareerView {

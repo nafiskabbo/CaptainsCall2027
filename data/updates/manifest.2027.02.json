@@ -1,0 +1,8 @@
+{
+  "db_version": "2027.02",
+  "changelog": "Example signed manifest: season refreshes squads, adds grounds and updates tour dates. Nothing is installed unless the signature verifies.",
+  "url": "https://example.com/cc2027/db/2027.02/world.json",
+  "bytes": 118456,
+  "signature": "ed25519:REPLACE_WITH_SIGNATURE_FROM_CI",
+  "channel": "stable"
+}

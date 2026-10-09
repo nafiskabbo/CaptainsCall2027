@@ -339,3 +339,25 @@ export interface Finances {
   wageBill: number;
   squadSize: number;
 }
+
+export type UpdateStatus =
+  | { kind: "UpToDate"; installed: string }
+  | {
+      kind: "Available";
+      version: string;
+      changelog: string;
+      bytes: number;
+      channel: string;
+    }
+  | { kind: "Unreachable"; installed: string }
+  | { kind: "Rejected"; installed: string; reason: string };
+
+export interface UpdateState {
+  installed: string;
+  settings: {
+    checkForUpdates: boolean;
+    channel: "stable" | "beta" | "local";
+    previousDbVersion: string | null;
+  };
+  status: UpdateStatus;
+}

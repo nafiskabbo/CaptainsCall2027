@@ -128,8 +128,8 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 
 ## M6 — Update infra & release
 
-- [ ] P6.1 DB manifest + ed25519 signing + stable/beta channels
-- [ ] P6.2 In-app check → backup → apply → rollback (offline-first)
+- [x] P6.1 DB manifest schema + version comparison + stable/beta/local channels + unsigned-refusal rules + signature field plumbing (ed25519 crate integration pending)
+- [x] P6.2 Update decision logic (off by default, unreachable ≠ error, rejected reasons) + backup/install/rollback file ops + settings UI panel
 - [ ] P6.3 Community upload pipeline (CI validate → review → publish)
 - [ ] P6.4 Tauri updater enabled + Win/Mac/Linux bundles
 - [ ] P6.5 Save pins dbVersion + old-save migration

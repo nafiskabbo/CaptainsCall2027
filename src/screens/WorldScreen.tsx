@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../tools/api";
 import type { Player, Team, World } from "../types";
+import UpdatePanel from "./UpdatePanel";
 
 interface Props {
   world: World;
@@ -148,6 +149,12 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
           </span>
         </div>
         {error && <p className="error">{error}</p>}
+      </section>
+
+      <section className="panel panel--flush">
+        <div style={{ padding: "0.6rem 0.8rem" }}>
+          <UpdatePanel />
+        </div>
       </section>
 
       <section className="panel panel--flush">

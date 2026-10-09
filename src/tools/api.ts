@@ -9,6 +9,7 @@ import type {
   CareerView,
   Finances,
   TransferListing,
+  UpdateState,
   Format,
   MatchInput,
   MatchSnapshot,
@@ -45,6 +46,11 @@ export const api = {
     invoke<BidOutcome>("bid_for_player", { playerId, offeredWage }),
   releasePlayer: (playerId: number) => invoke<void>("release_player", { playerId }),
   getFinances: () => invoke<Finances>("get_finances"),
+  getUpdateState: () => invoke<UpdateState>("get_update_state"),
+  setUpdateSettings: (enabled: boolean, channel?: string) =>
+    invoke<UpdateState>("set_update_settings", { enabled, channel }),
+  checkLocalUpdate: (manifestPath: string) =>
+    invoke<UpdateState>("check_local_update", { manifestPath }),
 
   // ---- selection ----
   getSelection: (fixtureId: number) =>
