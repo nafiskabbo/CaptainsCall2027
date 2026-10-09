@@ -1,0 +1,19 @@
+.shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.sub {
+  color: #8b949e;
+}
+
+.hint {
+  color: #8b949e;
+}
+
+code {
+  background: #161b22;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+}

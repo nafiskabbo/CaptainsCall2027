@@ -1,0 +1,42 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/WixTools/
+Cargo.lock
+*.rs.bk
+
+# Tauri dev artifacts
+*.app
+*.dmg
+*.exe
+*.msi
+*.AppImage
+*.deb
+
+# Saves + local DB (never commit)
+saves/
+*.save.json
+*.db
+*.db-journal
+data/local/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Env / keys (updater signing keys NEVER committed)
+*.pem
+*.key
+.env
+.env.*
+!.env.example

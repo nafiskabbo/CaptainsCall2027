@@ -1,0 +1,30 @@
+{
+  "name": "captains-call-2027",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Captain's Call 2027 — 2D cricket management sim (Tauri v2 + React). Tribute to Cricket Coach 2014.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "test": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-updater": "^2",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4",
+    "typescript": "~5.6",
+    "vite": "^6"
+  }
+}

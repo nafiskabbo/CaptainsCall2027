@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Captain's Call 2027",
+  "version": "0.1.0",
+  "identifier": "com.captainscall.game2027",
+  "build": {
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Captain's Call 2027",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Game",
+    "shortDescription": "2D cricket management sim",
+    "longDescription": "Captain's Call 2027 — a 2D-only cricket management simulation inspired by Cricket Coach 2014."
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": ["https://example.com/cc2027/updater/{{target}}/{{current_version}}/"],
+      "dialog": true,
+      "pubkey": "REPLACE_WITH_UPDATER_PUBLIC_KEY"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Baseline capabilities for Captain's Call 2027. Keep minimal — widen per milestone.",
+  "windows": ["main"],
+  "permissions": ["core:default", "updater:default"]
+}
