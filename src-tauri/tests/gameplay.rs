@@ -27,8 +27,16 @@ fn playable_team() -> (u32, u32) {
 #[test]
 fn bundled_world_is_valid() {
     let world = load_world();
-    assert!(world.db_version.starts_with("2027"), "db_version: {}", world.db_version);
-    assert!(world.players.len() >= 100, "players: {}", world.players.len());
+    assert!(
+        world.db_version.starts_with("2027"),
+        "db_version: {}",
+        world.db_version
+    );
+    assert!(
+        world.players.len() >= 100,
+        "players: {}",
+        world.players.len()
+    );
     assert!(world.nations.len() >= 6, "nations: {}", world.nations.len());
     assert!(!world.competitions.is_empty(), "competitions missing");
     for t in &world.teams {
@@ -56,9 +64,13 @@ fn career_starts_with_full_fixture_list() {
         .team_ids
         .len();
     let expected = (comp_size * (comp_size - 1)) / 2;
-    assert_eq!(career.state.fixtures.len(), expected as usize, "round robin size");
+    assert_eq!(
+        career.state.fixtures.len(),
+        expected as usize,
+        "round robin size"
+    );
     assert!(career.state.db_version.starts_with("2027"));
-    assert!(career.state.news.len() >= 1);
+    assert!(!career.state.news.is_empty());
 
     // The player's team plays every round exactly once.
     let mine = career.player_fixtures();
@@ -92,7 +104,10 @@ fn playing_a_fixture_records_the_result() {
         .iter()
         .find(|f| f.id == fixture_id)
         .unwrap();
-    assert!(fixture.result.is_some(), "fixture must be scored once complete");
+    assert!(
+        fixture.result.is_some(),
+        "fixture must be scored once complete"
+    );
 
     // Career news should mention the player's team result.
     assert!(
@@ -242,7 +257,9 @@ fn player_selection_is_validated_and_used() {
         batting_order: order.clone(),
         keeper_id: None,
     };
-    career.set_selection(&world, fixture.id, legal).expect("legal XI accepted");
+    career
+        .set_selection(&world, fixture.id, legal)
+        .expect("legal XI accepted");
     let stored = career.selection_for(&world, fixture.id).expect("stored");
     assert_eq!(stored.batting_order, order, "player order must be honoured");
 
@@ -262,8 +279,14 @@ fn player_selection_is_validated_and_used() {
     // Duplicates are rejected.
     let dupes = TeamSelection {
         team_id,
-        xi_ids: vec![squad[0], squad[0], squad[1], squad[1], squad[2], squad[2], squad[3], squad[3], squad[4], squad[5], squad[6]],
-        batting_order: vec![squad[0], squad[0], squad[1], squad[1], squad[2], squad[2], squad[3], squad[3], squad[4], squad[5], squad[6]],
+        xi_ids: vec![
+            squad[0], squad[0], squad[1], squad[1], squad[2], squad[2], squad[3], squad[3],
+            squad[4], squad[5], squad[6],
+        ],
+        batting_order: vec![
+            squad[0], squad[0], squad[1], squad[1], squad[2], squad[2], squad[3], squad[3],
+            squad[4], squad[5], squad[6],
+        ],
         keeper_id: None,
     };
     assert!(career.set_selection(&world, fixture.id, dupes).is_err());
@@ -326,7 +349,10 @@ fn aggression_changes_outcomes() {
     let wild_snap = wild.advance(600);
     let calm_score = calm_snap.innings.first().map(|i| i.runs).unwrap_or(0);
     let wild_score = wild_snap.innings.first().map(|i| i.runs).unwrap_or(0);
-    assert_ne!(calm_score, wild_score, "aggression should change the scoreline");
+    assert_ne!(
+        calm_score, wild_score,
+        "aggression should change the scoreline"
+    );
 }
 
 #[test]
@@ -398,12 +424,19 @@ fn players_develop_through_a_season_of_matches() {
         "playing should build experience"
     );
     // A young batter either gains skill or is already at potential — never above.
-    assert!(after.skills.bat.0 >= before.0, "young players must not regress");
+    assert!(
+        after.skills.bat.0 >= before.0,
+        "young players must not regress"
+    );
     assert!(after.skills.bat.0 <= after.potential.bat.0);
     // And it must survive a save round-trip.
     let json = serde_json::to_string(&career.state).unwrap();
     let restored: captains_call_2027_lib::db::CareerState = serde_json::from_str(&json).unwrap();
-    let restored_player = restored.players.iter().find(|p| p.id == youngest.id).unwrap();
+    let restored_player = restored
+        .players
+        .iter()
+        .find(|p| p.id == youngest.id)
+        .unwrap();
     assert_eq!(restored_player.experience, after.experience);
     assert_eq!(restored_player.skills.bat, after.skills.bat);
 }
@@ -419,7 +452,10 @@ fn international_career_schedules_cup_and_tours() {
     let mut career = Career::start(&world, nation_team.id, "World boss".into(), 31).unwrap();
 
     let fixture_count = career.state.fixtures.len();
-    assert!(fixture_count > 3, "an international programme should be non-trivial");
+    assert!(
+        fixture_count > 3,
+        "an international programme should be non-trivial"
+    );
     // Every fixture involves your nation.
     for f in &career.state.fixtures {
         assert!(
@@ -440,7 +476,10 @@ fn international_career_schedules_cup_and_tours() {
     career.start_fixture(&world, first).unwrap();
     career.advance_innings();
     career.advance_innings();
-    assert!(career.state.fixtures[0].result.is_some(), "first game scores");
+    assert!(
+        career.state.fixtures[0].result.is_some(),
+        "first game scores"
+    );
 
     // Off-season should keep producing an international programme.
     career.state.season = 1;
@@ -481,7 +520,10 @@ fn career_records_accumulate_across_matches() {
             break;
         }
     }
-    assert!(played >= 2, "should have played at least two matches, got {played}");
+    assert!(
+        played >= 2,
+        "should have played at least two matches, got {played}"
+    );
 
     // 22 players per match appear in the records.
     let batters: Vec<_> = career

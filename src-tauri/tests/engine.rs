@@ -79,7 +79,10 @@ fn squad(team_id: u32, base: u8, offset: u32) -> Vec<Player> {
 }
 
 fn build_world() -> World {
-    let players: Vec<Player> = squad(1, 85, 100).into_iter().chain(squad(2, 70, 200)).collect();
+    let players: Vec<Player> = squad(1, 85, 100)
+        .into_iter()
+        .chain(squad(2, 70, 200))
+        .collect();
     World {
         schema_version: 1,
         db_version: "test".into(),
@@ -179,7 +182,7 @@ fn t20_scoring_lands_in_realistic_range() {
 #[test]
 fn odi_scoring_lands_in_realistic_range() {
     let world = build_world();
-    let cfg = |seed: u64| MatchConfig {
+    let cfg = |_seed: u64| MatchConfig {
         match_id: 2,
         home_team: world.teams[0].clone(),
         away_team: world.teams[1].clone(),

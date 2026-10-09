@@ -48,7 +48,9 @@ impl SimRng {
         if bound == 0 {
             return 0;
         }
-        (self.next_f64() * bound as f64).floor().clamp(0.0, (bound - 1) as f64) as u32
+        (self.next_f64() * bound as f64)
+            .floor()
+            .clamp(0.0, (bound - 1) as f64) as u32
     }
 
     pub fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {

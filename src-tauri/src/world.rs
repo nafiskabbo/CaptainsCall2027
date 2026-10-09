@@ -5,7 +5,7 @@
 
 use crate::core::types::World;
 
-pub use crate::core::types as types;
+pub use crate::core::types;
 
 /// Current bundled DB version. Bump on every data change.
 pub const DB_VERSION: &str = "2027.01";

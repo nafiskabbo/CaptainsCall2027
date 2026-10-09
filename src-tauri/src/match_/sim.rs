@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::engine::{resolve_ball, BallContext};
 use super::state::{
-    BallOutcome, BattingCard, BowlingCard, ExtraKind, Innings, MatchClock, MatchInput,
-    MatchPhase, MatchResult, OverSummary, TossDecision, WinMargin,
+    BallOutcome, BattingCard, BowlingCard, ExtraKind, Innings, MatchClock, MatchInput, MatchPhase,
+    MatchResult, OverSummary, TossDecision, WinMargin,
 };
 use crate::core::rng::SimRng;
 use crate::core::types::{Format, Player, Team};
@@ -52,9 +52,7 @@ impl TeamSelection {
             })
             .collect();
         // Sort by usefulness for the format: keepers and bowlers float up.
-        pool.sort_by_key(|p| {
-            std::cmp::Reverse(usefulness(p, format))
-        });
+        pool.sort_by_key(|p| std::cmp::Reverse(usefulness(p, format)));
         let xi: Vec<Player> = pool.iter().take(11).map(|p| (*p).clone()).collect();
 
         // Batting order: top-7 by batting, then keepers/allrounders, then bowlers.
@@ -300,12 +298,14 @@ impl SimState {
         if self.cfg.format.max_overs().is_some() {
             let remaining = self.overs_remaining();
             if remaining <= 4 {
-                candidates.sort_by_key(|id| std::cmp::Reverse(self.player(*id).skills.bowl_for(self.cfg.format).0));
+                candidates.sort_by_key(|id| {
+                    std::cmp::Reverse(self.player(*id).skills.bowl_for(self.cfg.format).0)
+                });
                 // Keep only the top 3 rated options left.
-                candidates.truncate(3.max(1));
+                candidates.truncate(3);
             }
         }
-        let pool = if preferred != 0 && candidates.iter().any(|id| *id == preferred) {
+        let pool = if preferred != 0 && candidates.contains(&preferred) {
             vec![preferred]
         } else {
             candidates
@@ -347,6 +347,38 @@ impl SimState {
         }
     }
 
+    /// How much of a boost the batting side gets from being the underdog.
+    ///
+    /// Compares the average rating of the two XIs actually on the field.
+    fn minnow_boost(&self) -> f64 {
+        let batting_ids = self.current_innings_ref().batting_team_id;
+        let bowling_ids = self.current_innings_ref().bowling_team_id;
+        let batting = self.side_strength_of(batting_ids);
+        let bowling = self.side_strength_of(bowling_ids);
+        crate::match_::engine::minnow_boost(batting, bowling)
+    }
+
+    fn side_strength_of(&self, team_id: u32) -> u8 {
+        let format = self.cfg.format;
+        let ids: Vec<u32> = self.selection_of(team_id).xi_ids.clone();
+        let players: Vec<Player> = ids
+            .iter()
+            .filter_map(|id| self.players.get(id).cloned())
+            .collect();
+        let strength = players
+            .iter()
+            .map(|p| {
+                p.skills
+                    .bat_for(format)
+                    .0
+                    .max(p.skills.pace.0)
+                    .max(p.skills.spin.0) as u32
+            })
+            .sum::<u32>()
+            / players.len().max(1) as u32;
+        strength.clamp(20, 99) as u8
+    }
+
     /// Advance one delivery.
     pub fn bowl_ball(&mut self) -> Option<BallOutcome> {
         if self.phase == MatchPhase::Complete {
@@ -356,7 +388,9 @@ impl SimState {
         let bowler_id = self.bowler_id?;
         let striker = self.player(striker_id);
         let bowler = self.player(bowler_id);
-        let bowling_team = self.team_of(self.current_innings_ref().bowling_team_id).clone();
+        let bowling_team = self
+            .team_of(self.current_innings_ref().bowling_team_id)
+            .clone();
         let innings = self.current_innings_ref().clone();
         let over = innings.balls / 6;
         let powerplay = over < self.cfg.format.powerplay_overs();
@@ -377,6 +411,7 @@ impl SimState {
                     powerplay,
                     chasing,
                     run_rate_needed: rrr,
+                    minnow_boost: self.minnow_boost(),
                     input: &self.input,
                     rng: &mut rng,
                 };
@@ -465,7 +500,7 @@ impl SimState {
             self.bring_new_batter();
         }
 
-        if is_legal && self.current_innings_ref().balls % 6 == 0 {
+        if is_legal && self.current_innings_ref().balls.is_multiple_of(6) {
             let runs = self.current_innings_ref().runs;
             let wickets = self.current_innings_ref().wickets;
             let summary = OverSummary {
@@ -551,7 +586,7 @@ impl SimState {
         let all_out = inn.wickets >= self.wickets_per_innings();
         let declared = inn.is_declared;
         let overs_done = match self.cfg.format.max_overs() {
-            Some(max) => inn.balls >= max as u32 * 6,
+            Some(max) => inn.balls >= max * 6,
             None => false,
         };
         let time_up = self.cfg.format.max_overs().is_none() && self.balls_left_in_match() == 0;
@@ -716,7 +751,11 @@ impl SimState {
             (
                 Some(first_team),
                 WinMargin::Runs(first.runs - second.runs),
-                format!("{} win by {} runs", name(first_team), first.runs - second.runs),
+                format!(
+                    "{} win by {} runs",
+                    name(first_team),
+                    first.runs - second.runs
+                ),
             )
         } else {
             (None, WinMargin::Draw, "Match tied".to_string())

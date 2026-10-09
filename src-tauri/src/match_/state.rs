@@ -35,8 +35,9 @@ pub struct Dismissal {
 }
 
 /// What happened on one delivery (post-resolution).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BallOutcome {    pub runs: u32,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct BallOutcome {
+    pub runs: u32,
     pub extra_runs: u32,
     pub is_boundary_four: bool,
     pub is_boundary_six: bool,
@@ -45,21 +46,6 @@ pub struct BallOutcome {    pub runs: u32,
     /// Batsman on strike for the *next* ball (single changes strike).
     pub strike_changes: bool,
     pub commentary: String,
-}
-
-impl Default for BallOutcome {
-    fn default() -> Self {
-        BallOutcome {
-            runs: 0,
-            extra_runs: 0,
-            is_boundary_four: false,
-            is_boundary_six: false,
-            extra: None,
-            dismissal: None,
-            strike_changes: false,
-            commentary: String::new(),
-        }
-    }
 }
 
 impl BallOutcome {

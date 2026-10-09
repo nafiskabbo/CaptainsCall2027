@@ -212,7 +212,11 @@ pub fn delete(conn: &Connection, id: i64) -> Result<()> {
 }
 
 /// Records a completed fixture into the career and returns the news it produced.
-pub fn record_result(state: &mut CareerState, fixture_id: u32, result: FixtureResult) -> Vec<NewsItem> {
+pub fn record_result(
+    state: &mut CareerState,
+    fixture_id: u32,
+    result: FixtureResult,
+) -> Vec<NewsItem> {
     let summary = result.summary.clone();
     let is_player_match = state
         .fixtures
@@ -293,7 +297,10 @@ mod tests {
         let loaded = load(&conn, id).expect("load");
         assert_eq!(loaded.name, "Test career");
         assert_eq!(loaded.player_team_name, "Port Vale First XI");
-        assert_eq!(load(&conn, id + 999).unwrap_err().to_string().contains("not found"), true);
+        assert!(load(&conn, id + 999)
+            .unwrap_err()
+            .to_string()
+            .contains("not found"));
 
         let summaries = list(&conn).expect("list");
         assert_eq!(summaries.len(), 1);
@@ -352,14 +359,18 @@ mod tests {
             stage: None,
             result: None,
         });
-        let quiet = record_result(&mut other, 11, FixtureResult {
-            home_runs: 1,
-            away_runs: 2,
-            home_wickets: 10,
-            away_wickets: 10,
-            winner_id: Some(4),
-            summary: "Away win".into(),
-        });
+        let quiet = record_result(
+            &mut other,
+            11,
+            FixtureResult {
+                home_runs: 1,
+                away_runs: 2,
+                home_wickets: 10,
+                away_wickets: 10,
+                winner_id: Some(4),
+                summary: "Away win".into(),
+            },
+        );
         assert!(quiet.is_empty(), "neutral matches should not spam news");
     }
 }

@@ -5,10 +5,10 @@
 //! news update → season advances.
 
 use crate::core::rng::SimRng;
-use crate::core::skills::{skill_label, skill_value};
 use crate::core::scheduler::{self, Fixture, FixtureResult, TableRow};
-use crate::db::NewsItem;
+use crate::core::skills::{skill_label, skill_value};
 use crate::core::types::{Format, Player, Team, World};
+use crate::db::NewsItem;
 use crate::match_::state::{MatchPhase, MatchSnapshot};
 use crate::match_::{MatchConfig, SimState, TeamSelection};
 use crate::world::DB_VERSION;
@@ -37,7 +37,9 @@ pub struct LiveMatch {
 
 impl std::fmt::Debug for LiveMatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LiveMatch").field("fixture_id", &self.fixture_id).finish()
+        f.debug_struct("LiveMatch")
+            .field("fixture_id", &self.fixture_id)
+            .finish()
     }
 }
 
@@ -156,7 +158,11 @@ impl Career {
 
     /// Begin the player's fixture. CPU selection is the default for now
     /// (full squad selection screen is M4).
-    pub fn start_fixture(&mut self, world: &World, fixture_id: u32) -> Result<MatchSnapshot, String> {
+    pub fn start_fixture(
+        &mut self,
+        world: &World,
+        fixture_id: u32,
+    ) -> Result<MatchSnapshot, String> {
         if self.live.is_some() {
             return Err("a match is already in progress".into());
         }
@@ -340,7 +346,10 @@ impl Career {
     /// Simulate N balls in the live match (no-op once the match is over).
     pub fn advance(&mut self, balls: u32) -> MatchSnapshot {
         let Some(live) = self.live.as_mut() else {
-            return self.last_snapshot.clone().unwrap_or_else(MatchSnapshot::empty);
+            return self
+                .last_snapshot
+                .clone()
+                .unwrap_or_else(MatchSnapshot::empty);
         };
         live.sim.bowl_many(balls.max(1));
         let snapshot = live.snapshot();
@@ -358,7 +367,10 @@ impl Career {
     /// Fast-forward to the end of the current innings (no-op if match is over).
     pub fn advance_innings(&mut self) -> MatchSnapshot {
         let Some(live) = self.live.as_mut() else {
-            return self.last_snapshot.clone().unwrap_or_else(MatchSnapshot::empty);
+            return self
+                .last_snapshot
+                .clone()
+                .unwrap_or_else(MatchSnapshot::empty);
         };
         live.sim.bowl_many(1_000_000);
         let snapshot = live.snapshot();
@@ -386,12 +398,8 @@ impl Career {
                 .get(1)
                 .cloned()
                 .unwrap_or_else(|| empty_innings(home.batting_team_id, home.bowling_team_id));
-            let (home_runs, home_wickets, away_runs, away_wickets) = (
-                home.runs,
-                home.wickets,
-                away.runs,
-                away.wickets,
-            );
+            let (home_runs, home_wickets, away_runs, away_wickets) =
+                (home.runs, home.wickets, away.runs, away.wickets);
             let winner_id = snap.result.as_ref().and_then(|r| r.winner_team_id);
             let summary = snap
                 .result
@@ -478,12 +486,25 @@ impl Career {
         let mut bowling = Vec::new();
         for innings in &snapshot.innings {
             for card in &innings.bowling_cards {
-                bowling.push((card.name.clone(), u32::from(card.wickets), card.balls, card.runs));
+                bowling.push((
+                    card.name.clone(),
+                    u32::from(card.wickets),
+                    card.balls,
+                    card.runs,
+                ));
             }
         }
         let winner = snapshot.result.as_ref().and_then(|r| r.winner_team_id);
-        let home = snapshot.innings.first().map(|i| i.batting_team_id).unwrap_or(0);
-        let away = snapshot.innings.get(1).map(|i| i.batting_team_id).unwrap_or(0);
+        let home = snapshot
+            .innings
+            .first()
+            .map(|i| i.batting_team_id)
+            .unwrap_or(0);
+        let away = snapshot
+            .innings
+            .get(1)
+            .map(|i| i.batting_team_id)
+            .unwrap_or(0);
         crate::core::records::absorb_scorecard(
             &mut self.records,
             &batting,
@@ -504,8 +525,12 @@ impl Career {
     fn develop_players(&mut self, participant_ids: &[u32], format: crate::core::types::Format) {
         use crate::core::development;
         let mut map = development::to_map(self.players.clone());
-        let events =
-            development::apply_match_development(&mut map, participant_ids, format, self.state.seed);
+        let events = development::apply_match_development(
+            &mut map,
+            participant_ids,
+            format,
+            self.state.seed,
+        );
         self.players = development::to_vec(map);
 
         // Report the single most notable gain for the player's own squad.
@@ -569,7 +594,11 @@ impl Career {
             }
             let result = simulate_fixture(world, &fixture, self.state.seed ^ (fixture.id as u64));
             if let Some(result) = result {
-                news.extend(crate::db::record_result(&mut self.state, fixture.id, result));
+                news.extend(crate::db::record_result(
+                    &mut self.state,
+                    fixture.id,
+                    result,
+                ));
             }
         }
         news
@@ -632,7 +661,6 @@ mod match_orders {
             input.keep_strike_toggle = self.keep_strike;
         }
     }
-
 }
 
 /// A national team's programme: a World Challenge cup plus bilateral tours.
@@ -671,7 +699,12 @@ fn build_international_programme(world: &World, team_id: u32, seed: u64) -> Vec<
 
     // 2. Bilateral series after the cup.
     let mut day = cup.iter().map(|e| e.fixture.day).max().unwrap_or(40) + 7;
-    for (i, other) in nations.iter().filter(|id| **id != team_id).take(2).enumerate() {
+    for (i, other) in nations
+        .iter()
+        .filter(|id| **id != team_id)
+        .take(2)
+        .enumerate()
+    {
         let format = if i == 0 { Format::Odi50 } else { Format::Test };
         let matches = if format == Format::Test { 2 } else { 3 };
         let series = tournaments::series_fixtures(
@@ -696,7 +729,10 @@ fn build_international_programme(world: &World, team_id: u32, seed: u64) -> Vec<
                 f.home_id = team_id;
             }
             if f.away_id == 0 {
-                f.away_id = *nations.iter().find(|id| **id != team_id).unwrap_or(&team_id);
+                f.away_id = *nations
+                    .iter()
+                    .find(|id| **id != team_id)
+                    .unwrap_or(&team_id);
             }
         }
     }

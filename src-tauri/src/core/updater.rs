@@ -151,7 +151,9 @@ pub fn validate_manifest(
     // "YYYY.NN" is the only accepted shape.
     let parts: Vec<&str> = manifest.db_version.split('.').collect();
     if parts.len() != 2
-        || parts.iter().any(|p| p.is_empty() || !p.chars().all(|c| c.is_ascii_digit()))
+        || parts
+            .iter()
+            .any(|p| p.is_empty() || !p.chars().all(|c| c.is_ascii_digit()))
     {
         return Err(format!("bad version format: {}", manifest.db_version));
     }
@@ -267,7 +269,10 @@ mod tests {
             std::cmp::Ordering::Greater,
             "the year part dominates"
         );
-        assert_eq!(compare_versions("2027.1", "2027.1"), std::cmp::Ordering::Equal);
+        assert_eq!(
+            compare_versions("2027.1", "2027.1"),
+            std::cmp::Ordering::Equal
+        );
         assert_eq!(
             compare_versions("2027.2", "2027.3"),
             std::cmp::Ordering::Less
@@ -320,12 +325,7 @@ mod tests {
     #[test]
     fn updates_are_off_by_default() {
         let settings = UpdateSettings::default();
-        let status = evaluate_update(
-            "2027.01",
-            Some(&manifest("2027.02")),
-            &settings,
-            true,
-        );
+        let status = evaluate_update("2027.01", Some(&manifest("2027.02")), &settings, true);
         assert!(
             matches!(status, UpdateStatus::UpToDate { .. }),
             "offline-first: no prompting unless the user opts in"
@@ -340,7 +340,10 @@ mod tests {
         };
         let status = evaluate_update("2027.01", Some(&manifest("2027.02")), &settings, true);
         match status {
-            UpdateStatus::Available { manifest, installed } => {
+            UpdateStatus::Available {
+                manifest,
+                installed,
+            } => {
                 assert_eq!(manifest.db_version, "2027.02");
                 assert_eq!(installed, "2027.01");
             }

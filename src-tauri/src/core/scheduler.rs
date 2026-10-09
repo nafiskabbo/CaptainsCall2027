@@ -95,7 +95,7 @@ pub fn round_robin_fixtures(
             }
             let (home, away) = if (round + i) % 2 == 0 { (a, b) } else { (b, a) };
             fixtures.push(Fixture {
-                id: id,
+                id,
                 competition_id: competition.id,
                 home_id: home,
                 away_id: away,
@@ -139,9 +139,9 @@ pub fn knockout_fixtures(
         let mut next = Vec::new();
         let mut i = 0;
         while i + 1 < remaining.len() {
-            let day = start_day + (round as u32) * days_between(competition.format);
+            let day = start_day + round * days_between(competition.format);
             fixtures.push(Fixture {
-                id: id,
+                id,
                 competition_id: competition.id,
                 home_id: remaining[i],
                 away_id: remaining[i + 1],
@@ -176,10 +176,9 @@ pub fn table_for(team_ids: &[u32], fixtures: &[Fixture]) -> Vec<TableRow> {
         let Some(result) = &f.result else { continue };
 
         // Result column for each side.
-        for &(id, opponent, is_home) in &[
-            (f.home_id, f.away_id, true),
-            (f.away_id, f.home_id, false),
-        ] {
+        for &(id, opponent, is_home) in
+            &[(f.home_id, f.away_id, true), (f.away_id, f.home_id, false)]
+        {
             let Some(row) = rows.iter_mut().find(|r| r.team_id == id) else {
                 continue;
             };
@@ -240,11 +239,18 @@ mod tests {
         assert_eq!(fixtures.len(), 28, "8 teams, single round robin");
         let mut pairs = std::collections::HashSet::new();
         for f in &fixtures {
-            assert!(f.home_id != 0 && f.away_id != 0, "no bye placeholders in output");
+            assert!(
+                f.home_id != 0 && f.away_id != 0,
+                "no bye placeholders in output"
+            );
             pairs.insert((f.home_id.min(f.away_id), f.home_id.max(f.away_id)));
         }
         let expected = ids.len() * (ids.len() - 1) / 2;
-        assert_eq!(pairs.len(), expected, "every pairing should occur exactly once");
+        assert_eq!(
+            pairs.len(),
+            expected,
+            "every pairing should occur exactly once"
+        );
     }
 
     #[test]

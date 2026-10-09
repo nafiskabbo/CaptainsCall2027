@@ -148,14 +148,30 @@ fn drift_skills(
         test_bat: step(before.test_bat, player.potential.test_bat, grow - decline),
         odi_bat: step(before.odi_bat, player.potential.odi_bat, grow - decline),
         t20_bat: step(before.t20_bat, player.potential.t20_bat, grow - decline),
-        defence: step(before.defence, player.potential.defence, grow * 1.2 - decline),
+        defence: step(
+            before.defence,
+            player.potential.defence,
+            grow * 1.2 - decline,
+        ),
         pace: step(before.pace, player.potential.pace, grow - decline),
         spin: step(before.spin, player.potential.spin, grow - decline),
         odi_bowl: step(before.odi_bowl, player.potential.odi_bowl, grow - decline),
         t20_bowl: step(before.t20_bowl, player.potential.t20_bowl, grow - decline),
-        fielding: step(before.fielding, player.potential.fielding, (grow - decline) * 0.8),
-        keeping: step(before.keeping, player.potential.keeping, (grow - decline) * 0.9),
-        leadership: step(before.leadership, player.potential.leadership, (grow - decline) * 0.5),
+        fielding: step(
+            before.fielding,
+            player.potential.fielding,
+            (grow - decline) * 0.8,
+        ),
+        keeping: step(
+            before.keeping,
+            player.potential.keeping,
+            (grow - decline) * 0.9,
+        ),
+        leadership: step(
+            before.leadership,
+            player.potential.leadership,
+            (grow - decline) * 0.5,
+        ),
     };
     player.skills = after;
 
@@ -232,7 +248,7 @@ pub fn roll_injuries(players: &mut BTreeMap<u32, Player>, seed: u64) -> Vec<(u32
         let fitness_risk = (100.0 - f64::from(player.fitness)) / 100.0 * 0.040;
         let chance = (workload + age_risk + fitness_risk).clamp(0.0, 0.25);
         if rng.next_f64() < chance {
-            let days = 3 + rng.below(18) as u32;
+            let days = 3 + rng.below(18);
             player.injury_days = days;
             out.push((player.id, days));
         }
@@ -367,8 +383,16 @@ mod tests {
             apply_match_development(&mut players, &[1], Format::T20, 100 + i);
         }
         let after = players[&1].skills.bat;
-        assert!(after.0 > before.0, "expected growth, {:?} -> {:?}", before, after);
-        assert!(after.0 <= players[&1].potential.bat.0, "cannot exceed potential");
+        assert!(
+            after.0 > before.0,
+            "expected growth, {:?} -> {:?}",
+            before,
+            after
+        );
+        assert!(
+            after.0 <= players[&1].potential.bat.0,
+            "cannot exceed potential"
+        );
     }
 
     #[test]
@@ -379,7 +403,12 @@ mod tests {
             apply_match_development(&mut players, &[1], Format::T20, 500 + i);
         }
         let after = players[&1].skills.bat;
-        assert!(after.0 < before.0, "36-year-olds should decline, {:?} -> {:?}", before, after);
+        assert!(
+            after.0 < before.0,
+            "36-year-olds should decline, {:?} -> {:?}",
+            before,
+            after
+        );
     }
 
     #[test]
@@ -414,7 +443,10 @@ mod tests {
         for i in 0..20u64 {
             apply_match_development(&mut players, &[1], Format::T20, 900 + i);
         }
-        assert_eq!(players[&2].skills.bat, before_bench, "bench players don't grow");
+        assert_eq!(
+            players[&2].skills.bat, before_bench,
+            "bench players don't grow"
+        );
         assert!(
             players[&1].skills.bat.0 > before_bench.0,
             "starter should grow: {:?} -> {:?}",

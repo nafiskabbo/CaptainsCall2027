@@ -227,8 +227,22 @@ mod tests {
     #[test]
     fn leaderboards_pick_the_right_players() {
         let mut records = CareerRecords::default();
-        absorb_scorecard(&mut records, &[("Star".into(), 80, 50, 6, 1, true)], &[], 1, 2, None);
-        absorb_scorecard(&mut records, &[("Part Timer".into(), 10, 20, 1, 0, true)], &[], 1, 2, None);
+        absorb_scorecard(
+            &mut records,
+            &[("Star".into(), 80, 50, 6, 1, true)],
+            &[],
+            1,
+            2,
+            None,
+        );
+        absorb_scorecard(
+            &mut records,
+            &[("Part Timer".into(), 10, 20, 1, 0, true)],
+            &[],
+            1,
+            2,
+            None,
+        );
         absorb_scorecard(
             &mut records,
             &[("Wizard".to_string(), 0, 0, 0, 0, true)],

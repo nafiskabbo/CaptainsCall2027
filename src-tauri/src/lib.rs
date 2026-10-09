@@ -8,15 +8,12 @@
 //!
 //! `name` (2D only, no 3D).
 
+pub mod career;
 pub mod commands;
 pub mod core;
-pub mod match_;
 pub mod db;
-pub mod career;
+pub mod match_;
 pub mod world;
-
-#[cfg(test)]
-mod tests;
 
 pub use core::types::{
     Competition, CompetitionKind, Format, Ground, Nation, Player, Rating, Role, Skills, Team, World,

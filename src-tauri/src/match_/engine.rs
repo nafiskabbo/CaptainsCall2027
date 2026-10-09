@@ -54,6 +54,8 @@ pub struct BallContext<'a> {
     pub powerplay: bool,
     pub chasing: bool,
     pub run_rate_needed: f64,
+    /// Minnow weighting: >1.0 when this batting side is the underdog.
+    pub minnow_boost: f64,
     pub input: &'a MatchInput,
     pub rng: &'a mut SimRng,
 }
@@ -81,6 +83,8 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
     };
 
     // --- weights: base shape then modifiers ---
+    // Minnow weighting lifts the underdog's scoring so an upset is possible.
+    let boost = ctx.minnow_boost.clamp(1.0, 1.25);
     let mut w = BASE;
     // Wicket-less format baseline: better batter = more runs, fewer dots.
     w[DOT] *= 1.0 / rel;
@@ -119,7 +123,13 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
         .find(|c| c.player_id == ctx.batter_id)
         .map(|c| c.balls)
         .unwrap_or(0);
-    let set_mult = if balls_faced < 12 { 0.86 } else if balls_faced < 30 { 1.06 } else { 1.0 };
+    let set_mult = if balls_faced < 12 {
+        0.86
+    } else if balls_faced < 30 {
+        1.06
+    } else {
+        1.0
+    };
     w[FOUR] *= set_mult;
     w[SIX] *= set_mult;
     if balls_faced < 12 {
@@ -166,15 +176,24 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
         w[OUT] *= 1.04;
     }
 
+    // Apply the minnow boost before the final normalisation so the RPB anchor
+    // still holds, but the *distribution* favours the underdog's boundaries.
+    if boost > 1.0 {
+        w[FOUR] *= boost;
+        w[SIX] *= boost;
+        w[ONE] *= boost.sqrt();
+    }
+
     // Final pass: normalise scoring toward the format runs anchor. The batch
     // derivation makes this fast but approximate; the anchor keeps mean runs and
     // WP balls per 100 in band no matter how modifiers have shifted them.
     let target_rpb = FORMAT_ANCHOR[format_index(ctx.format)].0;
     let total: f64 = w.iter().sum();
     if total > 0.0 {
-        let expected = (w[ONE] + 2.0 * w[TWO] + 3.0 * w[THREE] + 4.0 * w[FOUR] + 6.0 * w[SIX]) / total;
+        let expected =
+            (w[ONE] + 2.0 * w[TWO] + 3.0 * w[THREE] + 4.0 * w[FOUR] + 6.0 * w[SIX]) / total;
         if expected > 0.0 {
-            let k = (target_rpb / expected).max(0.4).min(2.5);
+            let k = (target_rpb / expected).clamp(0.4, 2.5);
             for i in [ONE, TWO, THREE, FOUR, SIX] {
                 w[i] *= k;
             }
@@ -207,10 +226,13 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
             extra: Some(ExtraKind::Wide),
             dismissal: None,
             strike_changes: false,
-            commentary: commentary(rng, &[
-                "Wide, too far outside off.",
-                "Sprayed down leg, wide called.",
-            ]),
+            commentary: commentary(
+                rng,
+                &[
+                    "Wide, too far outside off.",
+                    "Sprayed down leg, wide called.",
+                ],
+            ),
         },
         NOBALL => BallOutcome {
             runs: 0,
@@ -220,10 +242,13 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
             extra: Some(ExtraKind::NoBall),
             dismissal: None,
             strike_changes: false,
-            commentary: commentary(rng, &[
-                "No ball — overstepped!",
-                "No ball called, free hit incoming.",
-            ]),
+            commentary: commentary(
+                rng,
+                &[
+                    "No ball — overstepped!",
+                    "No ball called, free hit incoming.",
+                ],
+            ),
         },
         _ => plain(0, false, rng),
     }
@@ -251,7 +276,8 @@ impl WicketContext {
     }
 }
 
-fn plain(runs: u32, strike_changes: bool, rng: &mut SimRng) -> BallOutcome {    let text = run_text(runs);
+fn plain(runs: u32, strike_changes: bool, rng: &mut SimRng) -> BallOutcome {
+    let text = run_text(runs);
     let lines: Vec<&str> = vec![text.as_str()];
     BallOutcome {
         runs,
@@ -282,13 +308,13 @@ fn wicket(ctx: &WicketContext, rng: &mut SimRng) -> BallOutcome {
     let bowl = ctx.bowl_norm;
     let spin_affinity = ctx.spin_affinity;
     let weights = vec![
-        16.0 * spin_affinity,      // caught
-        3.2,                       // lbw
-        6.0 * (0.7 * bowl + 0.3),  // bowled (pace bowls more)
-        0.9,                       // caught & bowled
-        1.3,                       // run out
-        0.45,                      // stumped
-        0.35,                      // hit wicket
+        16.0 * spin_affinity,     // caught
+        3.2,                      // lbw
+        6.0 * (0.7 * bowl + 0.3), // bowled (pace bowls more)
+        0.9,                      // caught & bowled
+        1.3,                      // run out
+        0.45,                     // stumped
+        0.35,                     // hit wicket
     ];
     let idx = Distribution::new(weights).pick(rng);
     let kind = match idx {
@@ -328,6 +354,28 @@ fn wicket(ctx: &WicketContext, rng: &mut SimRng) -> BallOutcome {
         strike_changes: false,
         commentary: commentary.to_string(),
     }
+}
+
+/// Average rating of a side, used to size the minnow weighting.
+pub fn side_strength(players: &[Player]) -> u8 {
+    if players.is_empty() {
+        return 50;
+    }
+    let total: u32 = players
+        .iter()
+        .map(|p| {
+            let best_bat = p.skills.bat_for(Format::Test).0;
+            let best_bowl = p.skills.pace.0.max(p.skills.spin.0);
+            best_bat.max(best_bowl) as u32
+        })
+        .sum();
+    (total / players.len() as u32).clamp(20, 99) as u8
+}
+
+/// Boost applied to the weaker side's scoring (1.0 at even strength).
+pub fn minnow_boost(mine: u8, theirs: u8) -> f64 {
+    let gap = (theirs as f64 - mine as f64).max(0.0);
+    (1.0 + (gap / 100.0) * 0.62).min(1.25)
 }
 
 fn format_index(format: Format) -> usize {
@@ -388,6 +436,96 @@ mod tests {
     /// Rough sanity of the outcome distribution: mean runs per ball and
     /// wicket rate should sit in a sensible band per format.
     #[test]
+    fn minnow_boost_favours_the_weaker_side() {
+        assert_eq!(minnow_boost(80, 80), 1.0, "even sides get no boost");
+        assert!(minnow_boost(60, 90) > 1.0, "underdogs are boosted");
+        assert!(
+            minnow_boost(90, 60) == 1.0,
+            "the stronger side gets nothing"
+        );
+        assert!(minnow_boost(40, 99) <= 1.25, "the boost is capped");
+        assert!(
+            minnow_boost(60, 90) > minnow_boost(70, 90),
+            "a bigger gap means a bigger boost"
+        );
+    }
+
+    #[test]
+    fn side_strength_is_an_average_of_the_best_skills() {
+        let strong: Vec<Player> = (0..11).map(|i| base_player(1 + i, 85, 30, false)).collect();
+        let weak: Vec<Player> = (0..11).map(|i| base_player(1 + i, 45, 30, false)).collect();
+        let (s, w) = (side_strength(&strong), side_strength(&weak));
+        assert!(s > w, "a better squad must rate higher ({s} vs {w})");
+        assert!((20..=99).contains(&s) && (20..=99).contains(&w));
+    }
+
+    #[test]
+    fn underdogs_can_produce_competitive_totals() {
+        // A weak side batting against a strong attack should still be able to
+        // post a defendable score thanks to the boost.
+        let weak_batters: Vec<Player> =
+            (0..11).map(|i| base_player(1 + i, 45, 20, false)).collect();
+        let strong_bowlers: Vec<Player> = (0..8)
+            .map(|i| base_player(100 + i, 30, 88, i % 2 == 0))
+            .collect();
+        let team = crate::core::types::Team {
+            id: 9,
+            name: "Underdogs".into(),
+            nation_id: 1,
+            home_ground_id: 1,
+            budget: 0,
+            reputation: Rating(40),
+            squad_ids: vec![],
+            is_national: false,
+        };
+        let input = MatchInput::default();
+        let mut innings = super::super::state::Innings {
+            batting_team_id: 1,
+            bowling_team_id: 2,
+            runs: 0,
+            wickets: 0,
+            balls: 0,
+            extras: 0,
+            batting_cards: vec![],
+            bowling_cards: vec![],
+            fow: vec![],
+            over_summaries: vec![],
+            is_declared: false,
+        };
+        let mut runs = 0u32;
+        let mut balls = 0u32;
+        for i in 0..2000 {
+            innings.balls = (i % 6) as u32;
+            let batter = &weak_batters[i % 11];
+            let bowler = &strong_bowlers[i % 8];
+            let mut ctx = BallContext {
+                striker: batter,
+                batter_id: batter.id,
+                bowler,
+                fielding_team: &team,
+                innings: &innings,
+                format: Format::T20,
+                over: 0,
+                powerplay: false,
+                chasing: false,
+                run_rate_needed: 0.0,
+                minnow_boost: sim_minnow(),
+                input: &input,
+                rng: &mut SimRng::new(77 + i as u64),
+            };
+            let o = resolve_ball(&mut ctx);
+            runs += o.total();
+            balls += 1;
+        }
+        let rpo = runs as f64 / (balls as f64 / 6.0);
+        assert!(rpo > 6.0, "underdogs should still score, got {rpo:.2} rpo");
+    }
+
+    fn sim_minnow() -> f64 {
+        minnow_boost(45, 88)
+    }
+
+    #[test]
     fn distribution_is_sane() {
         for (format, expected_rpb, max_wp_100) in [
             (Format::Test, 0.52, 4.0),
@@ -437,6 +575,7 @@ mod tests {
                     powerplay: false,
                     chasing: false,
                     run_rate_needed: 0.0,
+                    minnow_boost: 1.0,
                     input: &input,
                     rng: &mut rng,
                 };
@@ -450,7 +589,8 @@ mod tests {
             let rpb: f64 = runs / balls;
             let wp_100: f64 = wickets / balls * 100.0;
             assert!(
-                (rpb - expected_rpb).abs() < 0.45,                "{:?} runs per ball {rpb:.3}, expected ~{expected_rpb}",
+                (rpb - expected_rpb).abs() < 0.45,
+                "{:?} runs per ball {rpb:.3}, expected ~{expected_rpb}",
                 format
             );
             assert!(
@@ -461,4 +601,3 @@ mod tests {
         }
     }
 }
-

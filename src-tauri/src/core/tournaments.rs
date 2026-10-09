@@ -72,7 +72,7 @@ pub fn world_cup_fixtures(
                 };
                 out.push(InternationalFixture {
                     fixture: Fixture {
-                        id: id,
+                        id,
                         competition_id: 90_000 + gi as u32,
                         home_id: home,
                         away_id: away,
@@ -101,7 +101,7 @@ pub fn world_cup_fixtures(
     for i in 0..2u32 {
         out.push(InternationalFixture {
             fixture: Fixture {
-                id: id,
+                id,
                 competition_id: 90_100,
                 home_id: 0,
                 away_id: 0,
@@ -120,7 +120,7 @@ pub fn world_cup_fixtures(
     }
     out.push(InternationalFixture {
         fixture: Fixture {
-            id: id,
+            id,
             competition_id: 90_101,
             home_id: 0,
             away_id: 0,
@@ -140,10 +140,7 @@ pub fn world_cup_fixtures(
 /// Resolve a knockout fixture once its qualifiers are known.
 ///
 /// `qualifiers` are the team ids that advance, in order.
-pub fn resolve_knockouts(
-    fixtures: &mut [InternationalFixture],
-    qualifiers: &[(usize, u32, u32)],
-) {
+pub fn resolve_knockouts(fixtures: &mut [InternationalFixture], qualifiers: &[(usize, u32, u32)]) {
     for (fixture_index, home, away) in qualifiers {
         if let Some(entry) = fixtures.get_mut(*fixture_index) {
             entry.fixture.home_id = *home;
@@ -153,6 +150,7 @@ pub fn resolve_knockouts(
 }
 
 /// A bilateral tour: `matches` games against one opponent.
+#[allow(clippy::too_many_arguments)]
 pub fn series_fixtures(
     home_nation: u32,
     away_nation: u32,
@@ -229,13 +227,15 @@ pub fn group_table(fixtures: &[InternationalFixture], group: &str) -> Vec<GroupS
         })
         .collect();
 
-    for entry in fixtures.iter().filter(|f| matches!(&f.stage, Stage::Group(g) if g == group)) {
+    for entry in fixtures
+        .iter()
+        .filter(|f| matches!(&f.stage, Stage::Group(g) if g == group))
+    {
         let f = &entry.fixture;
         let Some(result) = &f.result else { continue };
-        for &(id, opponent, is_home) in &[
-            (f.home_id, f.away_id, true),
-            (f.away_id, f.home_id, false),
-        ] {
+        for &(id, opponent, is_home) in
+            &[(f.home_id, f.away_id, true), (f.away_id, f.home_id, false)]
+        {
             let Some(row) = rows.iter_mut().find(|r| r.team_id == id) else {
                 continue;
             };
@@ -281,7 +281,10 @@ mod tests {
             .iter()
             .filter(|f| matches!(f.stage, Stage::Group(_)))
             .count();
-        let semis = fixtures.iter().filter(|f| f.stage == Stage::SemiFinal).count();
+        let semis = fixtures
+            .iter()
+            .filter(|f| f.stage == Stage::SemiFinal)
+            .count();
         let finals = fixtures.iter().filter(|f| f.stage == Stage::Final).count();
 
         assert_eq!(groups, 12, "each group of 3 plays 3 games");
@@ -346,7 +349,10 @@ mod tests {
     fn knockout_qualifiers_are_filled_in() {
         let teams: Vec<u32> = (1..=12).collect();
         let mut fixtures = world_cup_fixtures(&teams, Format::T20, ground_of, 1, 3);
-        let semi_index = fixtures.iter().position(|f| f.stage == Stage::SemiFinal).unwrap();
+        let semi_index = fixtures
+            .iter()
+            .position(|f| f.stage == Stage::SemiFinal)
+            .unwrap();
         resolve_knockouts(&mut fixtures, &[(semi_index, 7, 8)]);
         assert_eq!(fixtures[semi_index].fixture.home_id, 7);
         assert_eq!(fixtures[semi_index].fixture.away_id, 8);

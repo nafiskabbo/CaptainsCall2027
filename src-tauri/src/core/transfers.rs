@@ -85,7 +85,7 @@ pub fn build_transfer_pool(
         });
     }
 
-    listings.sort_by(|a, b| b.reputation.0.cmp(&a.reputation.0));
+    listings.sort_by_key(|l| std::cmp::Reverse(l.reputation.0));
     listings
 }
 
@@ -116,13 +116,15 @@ pub fn place_bid(
     if let Some(player) = players.iter_mut().find(|p| p.id == listing.player_id) {
         player.team_id = Some(my_team_id);
     }
-    BidOutcome::Accepted {
-        wage: listing.wage,
-    }
+    BidOutcome::Accepted { wage: listing.wage }
 }
 
 /// Release a player from your squad into the pool.
-pub fn release_player(players: &mut [Player], my_team_id: u32, player_id: u32) -> Result<(), String> {
+pub fn release_player(
+    players: &mut [Player],
+    my_team_id: u32,
+    player_id: u32,
+) -> Result<(), String> {
     let player = players
         .iter_mut()
         .find(|p| p.id == player_id && p.team_id == Some(my_team_id))
@@ -144,15 +146,12 @@ pub fn wage_bill(players: &[Player], my_team_id: u32) -> u32 {
     players
         .iter()
         .filter(|p| p.team_id == Some(my_team_id))
-        .map(|p| {
-            20_000
-                + (p.skills.bat.0.max(p.skills.pace.0).max(p.skills.spin.0) as u32) * 2_400
-        })
+        .map(|p| 20_000 + (p.skills.bat.0.max(p.skills.pace.0).max(p.skills.spin.0) as u32) * 2_400)
         .sum()
 }
 
 /// Your club's team record.
-pub fn my_team<'a>(world: &'a World, team_id: u32) -> Option<&'a Team> {
+pub fn my_team(world: &World, team_id: u32) -> Option<&Team> {
     world.teams.iter().find(|t| t.id == team_id)
 }
 
@@ -293,14 +292,7 @@ mod tests {
     fn pool_offers_players_over_many_seeds() {
         let world = world();
         let players: Vec<Player> = (0..24)
-            .map(|i| {
-                player(
-                    1000 + i as u32,
-                    101 + (i % 2),
-                    55 + i as u8,
-                    24 + (i % 8) as u8,
-                )
-            })
+            .map(|i| player(1000 + i, 101 + (i % 2), 55 + i as u8, 24 + (i % 8) as u8))
             .collect();
         let mut seen = 0;
         for seed in 0..10u64 {
@@ -311,7 +303,7 @@ mod tests {
 
     #[test]
     fn release_moves_player_out_but_keeps_squad_size_visible() {
-        let world = world();
+        let _world = world();
         let mut players: Vec<Player> = (0..12)
             .map(|i| player(1000 + i, 100, 60 + i as u8, 25))
             .collect();
@@ -319,13 +311,19 @@ mod tests {
 
         release_player(&mut players, 100, 1003).expect("release");
         assert_eq!(squad_size(&players, 100), 11);
-        assert!(release_player(&mut players, 100, 50).is_err(), "not your player");
-        assert!(release_player(&mut players, 100, 999).is_err(), "unknown player");
+        assert!(
+            release_player(&mut players, 100, 50).is_err(),
+            "not your player"
+        );
+        assert!(
+            release_player(&mut players, 100, 999).is_err(),
+            "unknown player"
+        );
     }
 
     #[test]
     fn wage_bill_scales_with_squad_quality() {
-        let world = world();
+        let _world = world();
         let cheap: Vec<Player> = (0..11).map(|i| player(1000 + i, 100, 40, 25)).collect();
         let rich: Vec<Player> = (0..11).map(|i| player(2000 + i, 100, 90, 25)).collect();
         assert!(wage_bill(&rich, 100) > wage_bill(&cheap, 100));

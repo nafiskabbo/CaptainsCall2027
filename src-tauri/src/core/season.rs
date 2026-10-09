@@ -62,7 +62,11 @@ pub fn roll_season(
             candidates.push(RetirementCandidate { id: p.id, score });
         }
     }
-    candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Retire enough to keep squads healthy: roughly 2 per senior squad.
     let retire_target = (state.players.len() / 9).max(2).min(candidates.len());
@@ -107,8 +111,7 @@ pub fn roll_season(
             .filter(|t| t.is_national)
             .map(|t| t.id)
             .collect();
-        let cup =
-            tournaments::world_cup_fixtures(&nations, Format::T20, ground_of, 1, seed);
+        let cup = tournaments::world_cup_fixtures(&nations, Format::T20, ground_of, 1, seed);
         let mut day = cup.iter().map(|e| e.fixture.day).max().unwrap_or(40) + 7;
         state.fixtures = Vec::new();
         for entry in &cup {
@@ -216,13 +219,7 @@ fn generate_intake(
         return Vec::new();
     }
     let mut created = Vec::new();
-    let mut next_id = state
-        .players
-        .iter()
-        .map(|p| p.id)
-        .max()
-        .unwrap_or(1000)
-        + 1;
+    let mut next_id = state.players.iter().map(|p| p.id).max().unwrap_or(1000) + 1;
 
     for nation in &nations {
         // How many short we are for this nation's teams.
@@ -255,7 +252,8 @@ fn generate_intake(
                 4 => Role::PaceBowler,
                 _ => Role::SpinBowler,
             };
-            let spin = matches!(role, Role::SpinBowler) || (matches!(role, Role::Allrounder) && rng.chance(0.4));
+            let spin = matches!(role, Role::SpinBowler)
+                || (matches!(role, Role::Allrounder) && rng.chance(0.4));
 
             use crate::core::types::Rating;
             let skills = Skills {
@@ -269,7 +267,11 @@ fn generate_intake(
                 odi_bowl: Rating(bowl),
                 t20_bowl: Rating(bowl),
                 fielding: Rating(50 + rng.below(20) as u8),
-                keeping: Rating(if matches!(role, Role::Wicketkeeper) { 65 } else { 15 }),
+                keeping: Rating(if matches!(role, Role::Wicketkeeper) {
+                    65
+                } else {
+                    15
+                }),
                 leadership: Rating(20),
             };
             let potential = Skills {
@@ -352,7 +354,7 @@ mod tests {
         world
     }
 
-    fn career(world: &World, ages: Vec<u8>) -> crate::db::CareerState {
+    fn career(_world: &World, ages: Vec<u8>) -> crate::db::CareerState {
         let players: Vec<Player> = ages
             .into_iter()
             .enumerate()
@@ -448,7 +450,10 @@ mod tests {
             let report = roll_season(&mut state, &world, season);
             total_retired += report.retired.len();
         }
-        assert!(total_retired > 4, "veterans should retire over time, got {total_retired}");
+        assert!(
+            total_retired > 4,
+            "veterans should retire over time, got {total_retired}"
+        );
     }
 
     #[test]
@@ -474,7 +479,11 @@ mod tests {
             .collect();
         assert!(!ids.is_empty(), "intake players exist in the squad");
         for p in state.players.iter().filter(|p| ids.contains(&p.id)) {
-            assert!(p.age <= 22, "intake players must be academy age, got {}", p.age);
+            assert!(
+                p.age <= 22,
+                "intake players must be academy age, got {}",
+                p.age
+            );
         }
     }
 
@@ -483,6 +492,9 @@ mod tests {
         let world = world_with_players();
         let mut state = career(&world, vec![24; 11]);
         roll_season(&mut state, &world, 2);
-        assert!(state.news.iter().any(|n: &NewsItem| n.headline.contains("Season 3")));
+        assert!(state
+            .news
+            .iter()
+            .any(|n: &NewsItem| n.headline.contains("Season 3")));
     }
 }

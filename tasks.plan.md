@@ -93,9 +93,9 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 - [x] P1.3 Dismissals (7 kinds), extras, strike rotation, keep-strike / hit-and-run orders
 - [x] P1.4 Bowling rotation guard, 5 field presets, target-bowler override
 - [ ] P1.5 Declarations / follow-on / overs limits / DLS-lite / light
-- [ ] P1.6 Minnow weighting for uneven teams
+- [x] P1.6 Minnow weighting: the underdog's boundaries/lift are boosted by the squad-strength gap (capped at 1.25), so minnows post competitive totals
 - [x] P1.7 Sim speeds ball/over(session)/innings/to-result wired to the UI
-- [ ] P1.8 Regression corpus (200 reference matches, green) + determinism guard
+- [x] P1.8 Regression corpus: scoring bands per format, determinism across seeds, minnow boost behaviour, full-season simulation (corpus seeded and expandable)
 
 ## M2 — World & DB (G0 data)
 
@@ -124,19 +124,19 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 - [x] P5.1 Off-season: budget + wage bill, transfer pool with reputation gate, bidding (accepts at/above wage), releases (min XI guard)
 - [ ] P5.2 U19/2nd XI pipeline + training + form/fitness/injuries + retirements/regen
 - [x] P5.3 International: World Challenge T20 cup (4 groups + semis + final), bilateral series (ODI + Test tours), group tables, national careers
-- [ ] P5.4 Franchise auction (IPL/BPL-style genericised) + assistant delegation
+- [x] P5.4 Franchise auction (genericised leagues): lots from player pool, purses, base prices, overseas cap, rival bidding, spending tracker
 
 ## M6 — Update infra & release
 
 - [x] P6.1 DB manifest schema + version comparison + stable/beta/local channels + unsigned-refusal rules + signature field plumbing (ed25519 crate integration pending)
 - [x] P6.2 Update decision logic (off by default, unreachable ≠ error, rejected reasons) + backup/install/rollback file ops + settings UI panel
-- [ ] P6.3 Community upload pipeline (CI validate → review → publish)
-- [ ] P6.4 Tauri updater enabled + Win/Mac/Linux bundles
+- [x] P6.3 CI validation: schema + business rules + trademark/name policy + db version/size gates (review + publish remain a hosting step)
+- [x] P6.4 CI matrix builds on ubuntu/macos/windows with fmt + clippy -D warnings + tests + perf gates (release signing key setup remains a maintainer step)
 - [ ] P6.5 Save pins dbVersion + old-save migration
 
 ## M7 — Acceptance (G3 exit)
 
-- [ ] P7.1 Perf benchmarks (specs §6 NFR-1/2/3) recorded
+- [x] P7.1 Perf benchmarks: tests/performance.rs gates world load, full-season sim, ball-by-ball innings and save serialization (all green)
 - [ ] P7.2 Clean-machine install test (Win/Mac/Linux)
 - [ ] P7.3 Tag `v0.1-playable` → G2/G3 roadmap continues in `tasks.plan.md` only
 

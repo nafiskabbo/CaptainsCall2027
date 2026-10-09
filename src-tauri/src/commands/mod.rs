@@ -181,7 +181,10 @@ pub fn save_career(app: tauri::AppHandle, state: SharedState<'_>) -> Result<i64,
 }
 
 #[tauri::command]
-pub fn list_saves(app: tauri::AppHandle, state: SharedState<'_>) -> Result<Vec<SaveSummary>, String> {
+pub fn list_saves(
+    app: tauri::AppHandle,
+    state: SharedState<'_>,
+) -> Result<Vec<SaveSummary>, String> {
     let conn = state.saves(&app)?;
     db::list(&conn).map_err(|e| e.to_string())
 }
@@ -251,11 +254,11 @@ pub fn start_new_season(state: SharedState<'_>) -> Result<CareerView, String> {
 
 /// Transfer-window listings for the player's club.
 #[tauri::command]
-pub fn get_transfer_pool(state: SharedState<'_>) -> Result<Vec<crate::core::transfers::TransferListing>, String> {
+pub fn get_transfer_pool(
+    state: SharedState<'_>,
+) -> Result<Vec<crate::core::transfers::TransferListing>, String> {
     let guard = state.career.lock().map_err(|e| e.to_string())?;
-    let career = guard
-        .as_ref()
-        .ok_or("no career in progress")?;
+    let career = guard.as_ref().ok_or("no career in progress")?;
     let seed = career.state.seed ^ ((career.state.season as u64) << 20);
     Ok(crate::core::transfers::build_transfer_pool(
         &state.world,
@@ -296,14 +299,19 @@ pub fn bid_for_player(
     );
     if matches!(outcome, crate::core::transfers::BidOutcome::Accepted { .. }) {
         career.state.players = career.players.clone();
-        let wage_bill = crate::core::transfers::wage_bill(&career.players, career.state.player_team_id);
+        let wage_bill =
+            crate::core::transfers::wage_bill(&career.players, career.state.player_team_id);
         career.state.budget = Some((budget as i64 - wage_bill as i64).max(0));
         let name = listing.name.clone();
         career.state.news.insert(
             0,
             crate::db::NewsItem {
                 day: career.state.season_day,
-                headline: format!("{} signs for {}", name, career.state.player_team_name.clone()),
+                headline: format!(
+                    "{} signs for {}",
+                    name,
+                    career.state.player_team_name.clone()
+                ),
             },
         );
     }
@@ -337,23 +345,18 @@ pub struct Finances {
 #[tauri::command]
 pub fn get_finances(state: SharedState<'_>) -> Result<Finances, String> {
     let guard = state.career.lock().map_err(|e| e.to_string())?;
-    let career = guard
-        .as_ref()
-        .ok_or("no career in progress")?;
+    let career = guard.as_ref().ok_or("no career in progress")?;
     let team_id = career.state.player_team_id;
     Ok(Finances {
-        budget: career
-            .state
-            .budget
-            .unwrap_or_else(|| {
-                state
-                    .world
-                    .teams
-                    .iter()
-                    .find(|t| t.id == team_id)
-                    .map(|t| t.budget)
-                    .unwrap_or(1_000_000)
-            }),
+        budget: career.state.budget.unwrap_or_else(|| {
+            state
+                .world
+                .teams
+                .iter()
+                .find(|t| t.id == team_id)
+                .map(|t| t.budget)
+                .unwrap_or(1_000_000)
+        }),
         wage_bill: crate::core::transfers::wage_bill(&career.players, team_id),
         squad_size: crate::core::transfers::squad_size(&career.players, team_id),
     })
@@ -460,15 +463,22 @@ pub struct UpdateStateView {
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "kind")]
 pub enum UpdateStatusView {
-    UpToDate { installed: String },
+    UpToDate {
+        installed: String,
+    },
     Available {
         version: String,
         changelog: String,
         bytes: u64,
         channel: String,
     },
-    Unreachable { installed: String },
-    Rejected { installed: String, reason: String },
+    Unreachable {
+        installed: String,
+    },
+    Rejected {
+        installed: String,
+        reason: String,
+    },
 }
 
 impl From<crate::core::updater::UpdateStatus> for UpdateStatusView {
@@ -630,7 +640,7 @@ fn record_rows(career: &Career) -> Vec<CareerRecordRow> {
             five_wicket_hauls: p.five_wicket_hauls,
         })
         .collect();
-    rows.sort_by(|a, b| b.runs.cmp(&a.runs));
+    rows.sort_by_key(|r| std::cmp::Reverse(r.runs));
     rows
 }
 
