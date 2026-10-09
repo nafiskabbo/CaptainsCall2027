@@ -74,9 +74,14 @@ pub fn get_db_version() -> String {
 
 #[tauri::command]
 pub fn get_squad(state: SharedState<'_>, team_id: u32) -> Vec<crate::core::types::Player> {
-    state
-        .world
-        .players
+    let career_players = state
+        .career
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|c| c.players.clone()));
+    let source: Vec<crate::core::types::Player> =
+        career_players.unwrap_or_else(|| state.world.players.clone());
+    source
         .iter()
         .filter(|p| {
             if state
@@ -171,8 +176,16 @@ pub fn load_career(
 ) -> Result<CareerView, String> {
     let conn = state.saves(&app)?;
     let loaded = db::load(&conn, id).map_err(|e| e.to_string())?;
+    // Saved careers carry their own developed player list; fall back to the
+    // bundled world only for older saves that predate the players field.
+    let players = if loaded.players.is_empty() {
+        state.world.players.clone()
+    } else {
+        loaded.players.clone()
+    };
     let career = Career {
         state: loaded,
+        players,
         live: None,
         last_snapshot: None,
     };

@@ -3,6 +3,8 @@
 //! Everything that consumes randomness takes an explicit `&mut SimRng`, so a
 //! seed fully determines a match (specs FR-13, NFR-7).
 
+pub mod development;
+pub mod skills;
 pub mod rng;
 pub mod scheduler;
 pub mod types;

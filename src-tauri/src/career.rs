@@ -5,6 +5,7 @@
 //! news update → season advances.
 
 use crate::core::rng::SimRng;
+use crate::core::skills::{skill_label, skill_value};
 use crate::core::scheduler::{self, Fixture, FixtureResult, TableRow};
 use crate::db::NewsItem;
 use crate::core::types::{Format, Player, World};
@@ -16,6 +17,8 @@ use crate::world::DB_VERSION;
 #[derive(Debug)]
 pub struct Career {
     pub state: crate::db::CareerState,
+    /// The career's own copy of every player — this is what develops over time.
+    pub players: Vec<Player>,
     /// Live match, present only while the player is playing their fixture.
     pub live: Option<LiveMatch>,
     /// Snapshot of the last completed player match (kept after the match ends).
@@ -85,11 +88,15 @@ impl Career {
                 headline: format!("You take charge of {}", team.name),
             }],
             selections: Default::default(),
+            players: Vec::new(),
             seed,
         };
 
+        let mut state = state;
+        state.players = world.players.clone();
         Ok(Career {
             state,
+            players: world.players.clone(),
             live: None,
             last_snapshot: None,
         })
@@ -256,7 +263,7 @@ impl Career {
             .iter()
             .find(|t| t.id == self.state.player_team_id)
             .ok_or("team missing")?;
-        let squad_ids: std::collections::HashSet<u32> = world
+        let squad_ids: std::collections::HashSet<u32> = self
             .players
             .iter()
             .filter(|p| {
@@ -349,7 +356,7 @@ impl Career {
         if !complete {
             return;
         }
-        let (fixture_id, result) = {
+        let (fixture_id, result, played_xi, format) = {
             let live = self.live.as_ref().expect("live match");
             let snap = live.sim.snapshot();
             let home = &snap.innings[0];
@@ -370,6 +377,8 @@ impl Career {
                 .as_ref()
                 .map(|r| r.summary.clone())
                 .unwrap_or_else(|| "Match complete".into());
+            let mut xi: Vec<u32> = live.home_selection.xi_ids.clone();
+            xi.extend(live.away_selection.xi_ids.iter().copied());
             (
                 live.fixture_id,
                 FixtureResult {
@@ -380,12 +389,72 @@ impl Career {
                     winner_id,
                     summary,
                 },
+                xi,
+                snap.format,
             )
         };
         let final_snapshot = self.live.as_ref().map(|l| l.snapshot());
         self.live = None;
         self.last_snapshot = final_snapshot;
+        self.develop_players(&played_xi, format);
+        self.sync_players();
         crate::db::record_result(&mut self.state, fixture_id, result);
+    }
+
+    /// Mirror the career's players into the save payload.
+    fn sync_players(&mut self) {
+        self.state.players = self.players.clone();
+    }
+
+    /// Apply a match's development to the career's players and surface news for
+    /// the biggest mover in the player's own team.
+    fn develop_players(&mut self, participant_ids: &[u32], format: crate::core::types::Format) {
+        use crate::core::development;
+        let mut map = development::to_map(self.players.clone());
+        let events =
+            development::apply_match_development(&mut map, participant_ids, format, self.state.seed);
+        self.players = development::to_vec(map);
+
+        // Report the single most notable gain for the player's own squad.
+        let own: Vec<u32> = self
+            .players
+            .iter()
+            .filter(|p| p.team_id == Some(self.state.player_team_id))
+            .map(|p| p.id)
+            .collect();
+        if let Some(ev) = events.iter().find(|e| {
+            e.kind == development::DevelopmentKind::SkillGain
+                && own.contains(&e.player_id)
+                && e.amount >= 1
+        }) {
+            let skill = ev.skill.clone().unwrap_or_else(|| "ability".into());
+            self.state.news.insert(
+                0,
+                crate::db::NewsItem {
+                    day: self.state.season_day,
+                    headline: format!(
+                        "{} is developing well — {} up {} to {}",
+                        ev.player_name,
+                        skill_label(&skill),
+                        ev.amount,
+                        self.players
+                            .iter()
+                            .find(|p| p.id == ev.player_id)
+                            .map(|p| skill_value(p, &skill).to_string())
+                            .unwrap_or_default()
+                    ),
+                },
+            );
+        }
+    }
+
+    /// The career's players (squad lookups go through this so development shows).
+    pub fn squad(&self, team_id: u32) -> Vec<Player> {
+        self.players
+            .iter()
+            .filter(|p| p.team_id == Some(team_id))
+            .cloned()
+            .collect()
     }
 
     /// Simulate every other fixture on the given day.
@@ -428,7 +497,18 @@ impl Career {
         let mut news = Vec::new();
         for day in current..next {
             news.extend(self.simulate_day(world, day));
+            crate::core::development::apply_daily_recovery(&mut crate::core::development::to_map(
+                self.players.clone(),
+            ));
         }
+        // Rest days restore fitness (approximated per day skipped).
+        let rested = next.saturating_sub(current).max(1);
+        let mut map = crate::core::development::to_map(self.players.clone());
+        for _ in 0..rested {
+            crate::core::development::apply_daily_recovery(&mut map);
+        }
+        self.players = crate::core::development::to_vec(map);
+        self.sync_players();
         self.state.season_day = next;
         news
     }

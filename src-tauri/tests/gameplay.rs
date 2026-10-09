@@ -328,3 +328,82 @@ fn aggression_changes_outcomes() {
     let wild_score = wild_snap.innings.first().map(|i| i.runs).unwrap_or(0);
     assert_ne!(calm_score, wild_score, "aggression should change the scoreline");
 }
+
+#[test]
+fn players_develop_through_a_season_of_matches() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Growth".into(), 606).unwrap();
+
+    // A young player who plays every game should improve.
+    let youngest = career
+        .players
+        .iter()
+        .filter(|p| p.team_id == Some(team_id))
+        .min_by_key(|p| p.age)
+        .cloned()
+        .expect("a young player");
+    let before = youngest.skills.bat;
+
+    // Force that player into every XI we play.
+    for round in 0..career.state.fixtures.len() {
+        let fixture = career.state.fixtures[round].clone();
+        if fixture.result.is_some() || career.season_complete() {
+            continue;
+        }
+        if fixture.home_id != team_id && fixture.away_id != team_id {
+            continue;
+        }
+        let order: Vec<u32> = {
+            let mut ids = world
+                .players
+                .iter()
+                .filter(|p| p.team_id == Some(team_id) && p.id != youngest.id)
+                .take(10)
+                .map(|p| p.id)
+                .collect::<Vec<u32>>();
+            ids.insert(0, youngest.id);
+            ids
+        };
+        if order.len() == 11 {
+            career
+                .set_selection(
+                    &world,
+                    fixture.id,
+                    captains_call_2027_lib::match_::TeamSelection {
+                        team_id,
+                        xi_ids: order.clone(),
+                        batting_order: order,
+                        keeper_id: None,
+                    },
+                )
+                .unwrap();
+        }
+        career.start_fixture(&world, fixture.id).unwrap();
+        career.advance_innings();
+        career.advance_innings();
+        if career.season_complete() {
+            break;
+        }
+        career.advance_day(&world);
+    }
+
+    let after = career
+        .players
+        .iter()
+        .find(|p| p.id == youngest.id)
+        .expect("player still there");
+    assert!(
+        after.experience > youngest.experience,
+        "playing should build experience"
+    );
+    // A young batter either gains skill or is already at potential — never above.
+    assert!(after.skills.bat.0 >= before.0, "young players must not regress");
+    assert!(after.skills.bat.0 <= after.potential.bat.0);
+    // And it must survive a save round-trip.
+    let json = serde_json::to_string(&career.state).unwrap();
+    let restored: captains_call_2027_lib::db::CareerState = serde_json::from_str(&json).unwrap();
+    let restored_player = restored.players.iter().find(|p| p.id == youngest.id).unwrap();
+    assert_eq!(restored_player.experience, after.experience);
+    assert_eq!(restored_player.skills.bat, after.skills.bat);
+}

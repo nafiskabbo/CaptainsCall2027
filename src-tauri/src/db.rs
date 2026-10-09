@@ -75,6 +75,9 @@ pub struct CareerState {
     /// Player's XI per fixture (fixture_id -> selection). Falls back to auto-pick.
     #[serde(default)]
     pub selections: std::collections::BTreeMap<u32, crate::match_::TeamSelection>,
+    /// The career's own copy of the players, so development persists across saves.
+    #[serde(default)]
+    pub players: Vec<crate::core::types::Player>,
     pub seed: u64,
 }
 
@@ -256,6 +259,7 @@ mod tests {
             }],
             news: vec![],
             selections: Default::default(),
+            players: vec![],
             seed: 1,
         }
     }

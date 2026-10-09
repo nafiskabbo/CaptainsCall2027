@@ -282,6 +282,10 @@ export default function CareerScreen({
                 <th className="num">Bowl</th>
                 <th className="num">Fld</th>
                 <th className="num">Pot</th>
+                <th className="num">Trend</th>
+                <th className="num">Fit</th>
+                <th className="num">Form</th>
+                <th className="num">Exp</th>
               </tr>
             </thead>
             <tbody>
@@ -399,19 +403,59 @@ function SquadRows({ world, teamId }: { world: World; teamId: number }) {
 
   return (
     <>
-      {players.map((p) => (
-        <tr key={p.id}>
-          <td>{p.name}</td>
-          <td className="num">{p.age}</td>
-          <td className="muted">{p.role.replace(/_/g, " ")}</td>
-          <td className="num">{p.skills.bat}</td>
-          <td className="num">{Math.max(p.skills.pace, p.skills.spin)}</td>
-          <td className="num">{p.skills.fielding}</td>
-          <td className="num muted">{p.potential.bat}</td>
-        </tr>
-      ))}
+      {players.map((p) => {
+        const bestSkill = Math.max(p.skills.bat, p.skills.pace, p.skills.spin);
+        const bestPotential = Math.max(p.potential.bat, p.potential.pace, p.potential.spin);
+        const headroom = bestPotential - bestSkill;
+        const trend =
+          p.age <= 24 && headroom > 3 ? "▲" : p.age >= 32 && headroom <= 3 ? "▼" : headroom > 3 ? "△" : "·";
+        return (
+          <tr key={p.id}>
+            <td>{p.name}</td>
+            <td className="num">{p.age}</td>
+            <td className="muted">{p.role.replace(/_/g, " ")}</td>
+            <td className="num">{p.skills.bat}</td>
+            <td className="num">{Math.max(p.skills.pace, p.skills.spin)}</td>
+            <td className="num">{p.skills.fielding}</td>
+            <td className="num muted">{p.potential.bat}</td>
+            <td className="num" title={`Headroom: ${headroom} points to potential`}>
+              <span
+                className={
+                  trend === "▲" ? "pill pill--ok" : trend === "▼" ? "pill pill--warn" : "pill"
+                }
+              >
+                {trend}
+              </span>
+            </td>
+            <td className="num" title="Fitness — drops when playing, recovers on rest days">
+              <FitBar value={p.fitness} />
+            </td>
+            <td className="num" title="Form — recent performances">
+              <FormArrow value={p.form} />
+            </td>
+            <td className="num muted" title="Experience — builds with playing time">
+              {p.experience}
+            </td>
+          </tr>
+        );
+      })}
     </>
   );
+}
+
+function FitBar({ value }: { value: number }) {
+  const tone = value >= 85 ? "pill--ok" : value >= 60 ? "" : "pill--warn";
+  return (
+    <span className={`pill ${tone}`} style={{ minWidth: 42, justifyContent: "center" }}>
+      {value}
+    </span>
+  );
+}
+
+function FormArrow({ value }: { value: number }) {
+  if (value > 1) return <span style={{ color: "var(--green-bar)" }}>▲ {value}</span>;
+  if (value < -1) return <span style={{ color: "var(--red)" }}>▼ {value}</span>;
+  return <span className="muted">{value > 0 ? `+${value}` : value}</span>;
 }
 
 function dayHasMyTeam(fixtures: CareerView["state"]["fixtures"], day: number, teamId: number) {
