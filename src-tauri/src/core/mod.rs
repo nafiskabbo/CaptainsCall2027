@@ -6,6 +6,7 @@
 pub mod development;
 pub mod names;
 pub mod skills;
+pub mod records;
 pub mod rng;
 pub mod season;
 pub mod transfers;

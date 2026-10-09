@@ -23,6 +23,8 @@ pub struct Career {
     pub live: Option<LiveMatch>,
     /// Snapshot of the last completed player match (kept after the match ends).
     pub last_snapshot: Option<MatchSnapshot>,
+    /// Career statistics accumulated from every match.
+    pub records: crate::core::records::CareerRecords,
 }
 
 /// A match the player is controlling.
@@ -117,6 +119,7 @@ impl Career {
             players: world.players.clone(),
             live: None,
             last_snapshot: None,
+            records: Default::default(),
         })
     }
 
@@ -416,7 +419,45 @@ impl Career {
         self.last_snapshot = final_snapshot;
         self.develop_players(&played_xi, format);
         self.sync_players();
+        self.absorb_records();
         crate::db::record_result(&mut self.state, fixture_id, result);
+    }
+
+    /// Fold the last completed scorecard into career records.
+    fn absorb_records(&mut self) {
+        let Some(snapshot) = self.last_snapshot.as_ref() else {
+            return;
+        };
+        let mut batting = Vec::new();
+        for innings in &snapshot.innings {
+            for card in &innings.batting_cards {
+                batting.push((
+                    card.name.clone(),
+                    card.runs,
+                    card.balls,
+                    card.fours,
+                    card.sixes,
+                    card.out.is_some(),
+                ));
+            }
+        }
+        let mut bowling = Vec::new();
+        for innings in &snapshot.innings {
+            for card in &innings.bowling_cards {
+                bowling.push((card.name.clone(), u32::from(card.wickets), card.balls, card.runs));
+            }
+        }
+        let winner = snapshot.result.as_ref().and_then(|r| r.winner_team_id);
+        let home = snapshot.innings.first().map(|i| i.batting_team_id).unwrap_or(0);
+        let away = snapshot.innings.get(1).map(|i| i.batting_team_id).unwrap_or(0);
+        crate::core::records::absorb_scorecard(
+            &mut self.records,
+            &batting,
+            &bowling,
+            home,
+            away,
+            winner,
+        );
     }
 
     /// Mirror the career's players into the save payload.

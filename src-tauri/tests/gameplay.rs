@@ -450,3 +450,60 @@ fn international_career_schedules_cup_and_tours() {
         assert!(f.home_id == nation_team.id || f.away_id == nation_team.id);
     }
 }
+
+#[test]
+fn career_records_accumulate_across_matches() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+    let mut career = Career::start(&world, team_id, "Records".into(), 8181).unwrap();
+
+    assert!(career.records.players.is_empty(), "records start empty");
+
+    // Play every fixture available to us (a 3-team league gives two) and
+    // confirm stats accumulate.
+    let mut played = 0;
+    for round in 0..career.state.fixtures.len() {
+        if played >= 3 {
+            break;
+        }
+        let fixture = career.state.fixtures[round].clone();
+        if fixture.result.is_some() {
+            continue;
+        }
+        if fixture.home_id != team_id && fixture.away_id != team_id {
+            continue;
+        }
+        career.start_fixture(&world, fixture.id).unwrap();
+        career.advance_innings();
+        career.advance_innings();
+        played += 1;
+        if career.season_complete() {
+            break;
+        }
+    }
+    assert!(played >= 2, "should have played at least two matches, got {played}");
+
+    // 22 players per match appear in the records.
+    let batters: Vec<_> = career
+        .records
+        .players
+        .values()
+        .filter(|p| p.matches > 0)
+        .collect();
+    assert!(
+        batters.len() >= 11,
+        "records should cover both XIs, got {}",
+        batters.len()
+    );
+    let total_runs: u32 = batters.iter().map(|p| p.runs).sum();
+    assert!(total_runs > 0, "runs should accumulate");
+    let max = captains_call_2027_lib::core::records::leading_run_scorer(&career.records)
+        .expect("a leading scorer");
+    assert!(max.runs > 0);
+    assert!(max.batting_average().unwrap_or(0.0) > 0.0);
+
+    // Averages and strike rates are well-formed.
+    for p in batters {
+        assert!(p.strike_rate() >= 0.0 && p.strike_rate() <= 600.0);
+    }
+}

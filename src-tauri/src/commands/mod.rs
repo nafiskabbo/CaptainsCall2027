@@ -124,6 +124,22 @@ pub fn auto_select(
 // ---------------- career commands ----------------
 
 /// Career summary the UI renders on its home screen.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CareerRecordRow {
+    pub name: String,
+    pub matches: u32,
+    pub runs: u32,
+    pub average: Option<f64>,
+    pub strike_rate: f64,
+    pub wickets: u32,
+    pub bowling_average: Option<f64>,
+    pub economy: f64,
+    pub hundreds: u32,
+    pub fifties: u32,
+    pub five_wicket_hauls: u32,
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CareerView {
@@ -131,6 +147,8 @@ pub struct CareerView {
     pub table: Vec<TableRow>,
     pub next_fixture_id: Option<u32>,
     pub season_complete: bool,
+    pub international: bool,
+    pub records: Vec<CareerRecordRow>,
 }
 
 #[tauri::command]
@@ -188,6 +206,7 @@ pub fn load_career(
         players,
         live: None,
         last_snapshot: None,
+        records: Default::default(),
     };
     let view = build_view(&career, &state.world);
     *state.career.lock().map_err(|e| e.to_string())? = Some(career);
@@ -428,12 +447,45 @@ pub fn export_scorecard(state: SharedState<'_>) -> Result<String, String> {
 // ---------------- helpers ----------------
 
 fn build_view(career: &Career, world: &World) -> CareerView {
+    let international = world
+        .teams
+        .iter()
+        .find(|t| t.id == career.state.player_team_id)
+        .map(|t| t.is_national)
+        .unwrap_or(false);
     CareerView {
         state: career.state.clone(),
         table: career.table(world),
         next_fixture_id: career.next_fixture().map(|f| f.id),
         season_complete: career.season_complete(),
+        international,
+        records: record_rows(career),
     }
+}
+
+/// Records sorted by runs, for the career stats tab.
+fn record_rows(career: &Career) -> Vec<CareerRecordRow> {
+    let mut rows: Vec<CareerRecordRow> = career
+        .records
+        .players
+        .values()
+        .filter(|p| p.matches > 0)
+        .map(|p| CareerRecordRow {
+            name: p.name.clone(),
+            matches: p.matches,
+            runs: p.runs,
+            average: p.batting_average(),
+            strike_rate: p.strike_rate(),
+            wickets: p.wickets,
+            bowling_average: p.bowling_average(),
+            economy: p.economy(),
+            hundreds: p.hundreds,
+            fifties: p.fifties,
+            five_wicket_hauls: p.five_wicket_hauls,
+        })
+        .collect();
+    rows.sort_by(|a, b| b.runs.cmp(&a.runs));
+    rows
 }
 
 /// Whether a snapshot is finished.

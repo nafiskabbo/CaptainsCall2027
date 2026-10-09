@@ -29,7 +29,9 @@ export default function CareerScreen({
   onPlay,
   onOffSeason,
 }: Props) {
-  const [tab, setTab] = useState<"today" | "table" | "news" | "saves" | "squad">("today");
+  const [tab, setTab] = useState<
+    "today" | "table" | "records" | "news" | "squad" | "saves"
+  >("today");
   const [filter, setFilter] = useState<"all" | "mine">("all");
   const [saves, setSaves] = useState<SaveSummary[]>([]);
   const [busy, setBusy] = useState(false);
@@ -150,6 +152,7 @@ export default function CareerScreen({
             [
               ["today", "Fixtures"],
               ["table", "Table"],
+              ["records", "Records"],
               ["news", "News"],
               ["squad", "Squad"],
               ["saves", "Saves"],
@@ -256,6 +259,52 @@ export default function CareerScreen({
                   <td className="num strong">{r.points}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        )}
+
+        {tab === "records" && (
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th className="num">M</th>
+                <th className="num">Runs</th>
+                <th className="num">Ave</th>
+                <th className="num">SR</th>
+                <th className="num">100s</th>
+                <th className="num">50s</th>
+                <th className="num">Wkts</th>
+                <th className="num">Bowl Ave</th>
+                <th className="num">Econ</th>
+                <th className="num">5W</th>
+              </tr>
+            </thead>
+            <tbody>
+              {career.records.map((r) => (
+                <tr key={r.name}>
+                  <td>{r.name}</td>
+                  <td className="num">{r.matches}</td>
+                  <td className="num strong">{r.runs}</td>
+                  <td className="num">{r.average === null ? "—" : r.average.toFixed(1)}</td>
+                  <td className="num">{r.strikeRate.toFixed(0)}</td>
+                  <td className="num">{r.hundreds}</td>
+                  <td className="num">{r.fifties}</td>
+                  <td className="num">{r.wickets}</td>
+                  <td className="num">
+                    {r.bowlingAverage === null ? "—" : r.bowlingAverage.toFixed(1)}
+                  </td>
+                  <td className="num">{r.economy.toFixed(2)}</td>
+                  <td className="num">{r.fiveWicketHauls}</td>
+                </tr>
+              ))}
+              {career.records.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="muted">
+                    Play a match to start building career records.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         )}

@@ -288,6 +288,22 @@ export interface CareerView {
   table: TableRow[];
   next_fixture_id: number | null;
   season_complete: boolean;
+  international: boolean;
+  records: CareerRecordRow[];
+}
+
+export interface CareerRecordRow {
+  name: string;
+  matches: number;
+  runs: number;
+  average: number | null;
+  strikeRate: number;
+  wickets: number;
+  bowlingAverage: number | null;
+  economy: number;
+  hundreds: number;
+  fifties: number;
+  fiveWicketHauls: number;
 }
 
 export interface SaveSummary {
