@@ -163,6 +163,20 @@ pub fn save(conn: &Connection, state: &CareerState) -> Result<i64> {
     }
 }
 
+/// Load a save, reporting whether its dbVersion matches the installed one.
+///
+/// A save from a different database still loads — the stored career carries its
+/// own player list — but the caller is told so it can warn the user.
+pub fn load_checked(
+    conn: &Connection,
+    id: i64,
+    installed_db_version: &str,
+) -> Result<(CareerState, bool)> {
+    let state = load(conn, id)?;
+    let matches = state.db_version == installed_db_version;
+    Ok((state, matches))
+}
+
 pub fn load(conn: &Connection, id: i64) -> Result<CareerState> {
     let json: Option<String> = conn
         .query_row("SELECT state FROM saves WHERE id = ?1", params![id], |r| {

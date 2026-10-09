@@ -6,9 +6,10 @@ import CareerScreen from "./screens/CareerScreen";
 import MatchScreen from "./screens/MatchScreen";
 import WorldScreen from "./screens/WorldScreen";
 import OffSeasonScreen from "./screens/OffSeasonScreen";
+import SeasonSummary from "./screens/SeasonSummary";
 import { seasonClock, seasonDate } from "./lib/date";
 
-type Screen = "setup" | "career" | "match" | "offseason";
+type Screen = "setup" | "career" | "match" | "summary" | "offseason";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -149,6 +150,12 @@ export default function App() {
           </>
         }
       >
+        {career.dbVersionWarning && (
+          <p className="error" style={{ marginBottom: "0.7rem" }}>
+            {career.dbVersionWarning}
+          </p>
+        )}
+
         <CareerScreen
           world={world}
           career={career}
@@ -158,6 +165,51 @@ export default function App() {
             setScreen("match");
           }}
           onOffSeason={() => setScreen("offseason")}
+        />
+      </AppShell>
+    );
+  }
+
+  if (screen === "summary" && career) {
+    return (
+      <AppShell
+        clock={seasonClock(1)}
+        clockTitle="Season review"
+        title={career.state.player_team_name}
+        subtitle={`Season ${career.state.season} final standings`}
+        homeFlag={(world.nations.find((n) => n.id === career.state.nation_id)?.short_name ?? "CC")
+          .slice(0, 3)
+          .toUpperCase()}
+        items={[
+          { id: "news", label: "Season review", icon: "news", active: true },
+          { id: "records", label: "Records", icon: "records" },
+        ]}
+        actionBar={
+          <>
+            <button className="btn" onClick={() => api.saveCareer().then(() => undefined)}>
+              Save
+            </button>
+            <span className="actionbar__message">
+              {career.season_complete
+                ? "Every fixture played — roll into the off-season when you are ready."
+                : "Season still in progress."}
+            </span>
+            <button
+              className="btn btn--continue"
+              onClick={() => setScreen("offseason")}
+              disabled={!career.season_complete}
+            >
+              Off-season
+              <span className="btn--continue__arrow">➜</span>
+            </button>
+          </>
+        }
+      >
+        <SeasonSummary
+          world={world}
+          career={career}
+          onOffSeason={() => setScreen("offseason")}
+          onSave={() => api.saveCareer().then(() => undefined)}
         />
       </AppShell>
     );
@@ -264,8 +316,10 @@ export default function App() {
             <button
               className="btn btn--continue"
               onClick={() => {
-                api.getCareer().then(setCareer);
-                setScreen("career");
+                api.getCareer().then((next) => {
+                  setCareer(next);
+                  setScreen(next.season_complete ? "summary" : "career");
+                });
               }}
             >
               Continue

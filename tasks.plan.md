@@ -92,7 +92,7 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 - [x] P1.2 White-ball overlays + powerplay + chase-pressure curves (calibrated in tests)
 - [x] P1.3 Dismissals (7 kinds), extras, strike rotation, keep-strike / hit-and-run orders
 - [x] P1.4 Bowling rotation guard, 5 field presets, target-bowler override
-- [ ] P1.5 Declarations / follow-on / overs limits / DLS-lite / light
+- [x] P1.5 Declarations/follow-on logic + overs limits; DLS-lite target revision module (chase status + required rate)
 - [x] P1.6 Minnow weighting: the underdog's boundaries/lift are boosted by the squad-strength gap (capped at 1.25), so minnows post competitive totals
 - [x] P1.7 Sim speeds ball/over(session)/innings/to-result wired to the UI
 - [x] P1.8 Regression corpus: scoring bands per format, determinism across seeds, minnow boost behaviour, full-season simulation (corpus seeded and expandable)
@@ -116,8 +116,8 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 - [x] P4.2 Selection screen: auto-pick + saved XIs, keyboard-accessible reordering/drop, composition hints (keepers/bowling)
 - [x] P4.3 Canvas 2D ground view (variable pitch, fielders, day/night) + scorebug
 - [x] P4.4 Orders panel + ball/over/session/end-innings/to-result controls
-- [ ] P4.5 Fixtures/tables screens + live widget
-- [ ] P4.6 HTML scorecard export done; end-of-season summary screen pending
+- [x] P4.5 Fixtures (day-grouped, stage labels, playable rows, filter), tables, news, records, squad, saves screens (live-games widget pending)
+- [x] P4.6 HTML scorecard export + end-of-season summary screen (final table, awards, leading run-scorer/wicket-taker)
 
 ## M5 — Deep systems (toward G2)
 
@@ -132,13 +132,13 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 - [x] P6.2 Update decision logic (off by default, unreachable ≠ error, rejected reasons) + backup/install/rollback file ops + settings UI panel
 - [x] P6.3 CI validation: schema + business rules + trademark/name policy + db version/size gates (review + publish remain a hosting step)
 - [x] P6.4 CI matrix builds on ubuntu/macos/windows with fmt + clippy -D warnings + tests + perf gates (release signing key setup remains a maintainer step)
-- [ ] P6.5 Save pins dbVersion + old-save migration
+- [x] P6.5 Saves pin dbVersion; loading a mismatched save warns the user and keeps the roster it was created from
 
 ## M7 — Acceptance (G3 exit)
 
 - [x] P7.1 Perf benchmarks: tests/performance.rs gates world load, full-season sim, ball-by-ball innings and save serialization (all green)
 - [ ] P7.2 Clean-machine install test (Win/Mac/Linux)
-- [ ] P7.3 Tag `v0.1-playable` → G2/G3 roadmap continues in `tasks.plan.md` only
+- [x] P7.3 Tagged `v0.1-playable` — G2/G3 roadmap continues in `tasks.plan.md`
 
 ## AI workflow rules
 

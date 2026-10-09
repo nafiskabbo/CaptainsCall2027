@@ -5,6 +5,7 @@
 
 pub mod auction;
 pub mod development;
+pub mod dls;
 pub mod names;
 pub mod records;
 pub mod rng;

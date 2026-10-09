@@ -149,6 +149,8 @@ pub struct CareerView {
     pub season_complete: bool,
     pub international: bool,
     pub records: Vec<CareerRecordRow>,
+    /// Set when a save was created against a different database version.
+    pub db_version_warning: Option<String>,
 }
 
 #[tauri::command]
@@ -196,7 +198,18 @@ pub fn load_career(
     id: i64,
 ) -> Result<CareerView, String> {
     let conn = state.saves(&app)?;
-    let loaded = db::load(&conn, id).map_err(|e| e.to_string())?;
+    // Warn (but still load) when the save came from a different dbVersion.
+    let (loaded, matches_db) = db::load_checked(&conn, id, crate::world::DB_VERSION)
+        .map_err(|e| e.to_string())?;
+    let mismatch = if matches_db {
+        None
+    } else {
+        Some(format!(
+            "This save uses database {} but {} is installed. It will load with the roster it was created from.",
+            loaded.db_version,
+            crate::world::DB_VERSION
+        ))
+    };
     // Saved careers carry their own developed player list; fall back to the
     // bundled world only for older saves that predate the players field.
     let players = if loaded.players.is_empty() {
@@ -211,7 +224,8 @@ pub fn load_career(
         last_snapshot: None,
         records: Default::default(),
     };
-    let view = build_view(&career, &state.world);
+    let mut view = build_view(&career, &state.world);
+    view.db_version_warning = mismatch;
     *state.career.lock().map_err(|e| e.to_string())? = Some(career);
     Ok(view)
 }
@@ -616,6 +630,7 @@ fn build_view(career: &Career, world: &World) -> CareerView {
         season_complete: career.season_complete(),
         international,
         records: record_rows(career),
+        db_version_warning: None,
     }
 }
 

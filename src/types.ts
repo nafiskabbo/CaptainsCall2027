@@ -291,6 +291,7 @@ export interface CareerView {
   season_complete: boolean;
   international: boolean;
   records: CareerRecordRow[];
+  dbVersionWarning: string | null;
 }
 
 export interface CareerRecordRow {
