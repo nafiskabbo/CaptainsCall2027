@@ -11,6 +11,7 @@ interface Props {
   career: CareerView;
   onCareer: (view: CareerView) => void;
   onPlay: (snapshot: MatchSnapshot) => void;
+  onOffSeason: () => void;
 }
 
 function teamName(world: World, id: number): string {
@@ -26,6 +27,7 @@ export default function CareerScreen({
   career,
   onCareer,
   onPlay,
+  onOffSeason,
 }: Props) {
   const [tab, setTab] = useState<"today" | "table" | "news" | "saves" | "squad">("today");
   const [filter, setFilter] = useState<"all" | "mine">("all");
@@ -130,6 +132,13 @@ export default function CareerScreen({
                   table.findIndex((r) => r.team_id === myTeamId) + 1
                 }.`}
           </p>
+          <button
+            className="btn btn--primary"
+            style={{ marginTop: "0.5rem" }}
+            onClick={onOffSeason}
+          >
+            Go to off-season
+          </button>
         </section>
       )}
 

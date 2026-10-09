@@ -1,0 +1,41 @@
+//! Fictional name pools, shared by the world generator and the season intake.
+//!
+//! Names are invented, not derived from real players — see `data/README.md`
+//! and specs DR-1 (no real names, no trademarks).
+
+/// Per-nation first-name pools.
+pub const FIRST_NAMES: &[&str] = &[
+    "Ares", "Brant", "Colm", "Doran", "Egan", "Fintan", "Garran", "Hale", "Ivor", "Jarek",
+    "Kellan", "Lorcan", "Maddox", "Nolan", "Orson", "Padraig", "Quinn", "Rory", "Seamus", "Tobin",
+    "Alaric", "Bastian", "Corvin", "Darius", "Emrys", "Florian", "Gideon", "Hugo", "Ignatius",
+    "Jonas", "Kasper", "Leander", "Maxim", "Nikolai", "Oskar", "Piotr", "Rasmus", "Stefan", "Tomas",
+    "Viktor", "Ambrose", "Benedict", "Cyril", "Desmond", "Erasmus", "Fabian", "Giles", "Horace",
+    "Isadore", "Julius", "Klaus", "Lucius", "Marius", "Norbert", "Ozwald", "Pliny", "Quintus",
+    "Rufus", "Sylvan", "Theodore", "Ainsley", "Bodhi", "Caspian", "Dane", "Elowen", "Fjord",
+    "Gunnar", "Haldor", "Ingrid", "Joren", "Kolbrun", "Lars", "Mikkel", "Njal", "Osvald", "Petra",
+    "Ragna", "Sigrid", "Tove", "Ulrik", "Aurel", "Bruno", "Cesar", "Domenico", "Enzo", "Fabrizio",
+    "Gianni", "Hector", "Iker", "Joaquin", "Kiko", "Lorenzo", "Mateo", "Nico", "Osvaldo", "Pablo",
+    "Rafa", "Sergio", "Toro", "Vito",
+];
+
+/// Per-nation surname pools.
+pub const LAST_NAMES: &[&str] = &[
+    "Ashcombe", "Ballinderry", "Carmichael", "Dunmore", "Eastwood", "Fairbrother", "Glenfield",
+    "Hartleigh", "Inglewood", "Jarrowdale", "Kilbride", "Larkmere", "Mowbray", "Northgate",
+    "Oakhurst", "Peverley", "Quarryhill", "Redmayne", "Stonewell", "Thornbury", "Aldenberg",
+    "Brandt", "Corvath", "Drechsler", "Eberhardt", "Falkner", "Gruber", "Hoffstetter", "Iversen",
+    "Jahnke", "Kronberg", "Lindqvist", "Meissner", "Nordhaus", "Osterman", "Prantl", "Rosenkranz",
+    "Sorensen", "Timmermann", "Voss", "Alborne", "Bisset", "Calder", "Duval", "Everard", "Florin",
+    "Grevill", "Halloran", "Ismer", "Jorrand", "Kestrel", "Lumier", "Marchetti", "Navarre", "Ozan",
+    "Perrault", "Quiron", "Ravanel", "Saintclair", "Thibaudeau",
+];
+
+/// Club-style name parts for new domestic sides.
+pub const CITY_NAMES: &[&str] = &[
+    "Kearstown", "Port Vale", "Redhaven", "Highgate", "Terrence City", "Novaholm", "Braunfell",
+    "Ludwigsberg", "Vivian Bay", "Port Aubert", "Saintclair", "Marlbrook", "Nordvik", "Fjordheim",
+    "Bregstadt", "Kalvnes", "Aurelia", "Port Sable", "Monte Cal", "Viento",
+];
+
+/// Suffixes used when building club names.
+pub const CLUB_SUFFIXES: &[&str] = &["First XI", "Royals", "United", "Rangers", "Athletic"];

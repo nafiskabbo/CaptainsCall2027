@@ -5,9 +5,10 @@ import AppShell, { type SidebarItem } from "./components/AppShell";
 import CareerScreen from "./screens/CareerScreen";
 import MatchScreen from "./screens/MatchScreen";
 import WorldScreen from "./screens/WorldScreen";
+import OffSeasonScreen from "./screens/OffSeasonScreen";
 import { seasonClock, seasonDate } from "./lib/date";
 
-type Screen = "setup" | "career" | "match";
+type Screen = "setup" | "career" | "match" | "offseason";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -155,6 +156,62 @@ export default function App() {
           onPlay={(snap) => {
             setSnapshot(snap);
             setScreen("match");
+          }}
+          onOffSeason={() => setScreen("offseason")}
+        />
+      </AppShell>
+    );
+  }
+
+  if (screen === "offseason" && career) {
+    return (
+      <AppShell
+        clock={seasonClock(1)}
+        clockTitle="Off-season"
+        title={career.state.player_team_name}
+        subtitle={`Season ${career.state.season} review`}
+        homeFlag={(world.nations.find((n) => n.id === career.state.nation_id)?.short_name ?? "CC")
+          .slice(0, 3)
+          .toUpperCase()}
+        items={[
+          { id: "news", label: "Off-season", icon: "news", active: true },
+          { id: "team", label: "Squad", icon: "team" },
+        ]}
+        actionBar={
+          <>
+            <button className="btn" onClick={() => api.saveCareer().then(() => undefined)}>
+              Save
+            </button>
+            <span className="actionbar__message">
+              Retirees, academy intake and the transfer window are available before rolling
+              the season.
+            </span>
+            <button
+              className="btn btn--continue"
+              onClick={async () => {
+                const next = await api.startNewSeason();
+                setCareer(next);
+                setScreen("career");
+              }}
+            >
+              Begin season {career.state.season + 1}
+              <span className="btn--continue__arrow">➜</span>
+            </button>
+          </>
+        }
+      >
+        <OffSeasonScreen
+          world={world}
+          career={career}
+          onCareer={setCareer}
+          onExit={() => {
+            setCareer(null);
+            setScreen("setup");
+          }}
+          onNewSeason={async () => {
+            const next = await api.startNewSeason();
+            setCareer(next);
+            setScreen("career");
           }}
         />
       </AppShell>

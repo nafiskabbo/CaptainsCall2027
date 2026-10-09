@@ -78,7 +78,17 @@ pub struct CareerState {
     /// The career's own copy of the players, so development persists across saves.
     #[serde(default)]
     pub players: Vec<crate::core::types::Player>,
+    /// Club funds available for wages/bids in the transfer window.
+    #[serde(default)]
+    pub budget: Option<i64>,
+    /// Which season of this career we are in (1 = first).
+    #[serde(default = "default_season")]
+    pub season: u32,
     pub seed: u64,
+}
+
+fn default_season() -> u32 {
+    1
 }
 
 /// Runs the schema migrations on an existing connection.
@@ -260,6 +270,8 @@ mod tests {
             news: vec![],
             selections: Default::default(),
             players: vec![],
+            budget: None,
+            season: 1,
             seed: 1,
         }
     }

@@ -4,8 +4,11 @@
 //! seed fully determines a match (specs FR-13, NFR-7).
 
 pub mod development;
+pub mod names;
 pub mod skills;
 pub mod rng;
+pub mod season;
+pub mod transfers;
 pub mod scheduler;
 pub mod types;
 

@@ -275,6 +275,9 @@ export interface CareerState {
   fixtures: Fixture[];
   news: NewsItem[];
   selections: Record<number, TeamSelection>;
+  players: Player[];
+  budget: number | null;
+  season: number;
   seed: number;
 }
 
@@ -292,4 +295,28 @@ export interface SaveSummary {
   season_day: number;
   db_version: string;
   updated_at: string;
+}
+
+export interface TransferListing {
+  player_id: number;
+  name: string;
+  age: number;
+  role: string;
+  from_team: string;
+  wage: number;
+  reputation: number;
+  interested_in_you: boolean;
+  value: number;
+}
+
+export type BidOutcome =
+  | "Accepted"
+  | { RejectedTooLow: { wanted: number } }
+  | "NotInterested"
+  | { InsufficientFunds: { available: number } };
+
+export interface Finances {
+  budget: number;
+  wageBill: number;
+  squadSize: number;
 }

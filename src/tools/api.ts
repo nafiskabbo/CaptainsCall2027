@@ -5,7 +5,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppInfo,
+  BidOutcome,
   CareerView,
+  Finances,
+  TransferListing,
   Format,
   MatchInput,
   MatchSnapshot,
@@ -36,6 +39,12 @@ export const api = {
   loadCareer: (id: number) => invoke<CareerView>("load_career", { id }),
   deleteSave: (id: number) => invoke<void>("delete_save", { id }),
   advanceDay: () => invoke<CareerView>("advance_day"),
+  startNewSeason: () => invoke<CareerView>("start_new_season"),
+  getTransferPool: () => invoke<TransferListing[]>("get_transfer_pool"),
+  bidForPlayer: (playerId: number, offeredWage: number) =>
+    invoke<BidOutcome>("bid_for_player", { playerId, offeredWage }),
+  releasePlayer: (playerId: number) => invoke<void>("release_player", { playerId }),
+  getFinances: () => invoke<Finances>("get_finances"),
 
   // ---- selection ----
   getSelection: (fixtureId: number) =>

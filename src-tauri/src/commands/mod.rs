@@ -200,6 +200,146 @@ pub fn delete_save(app: tauri::AppHandle, state: SharedState<'_>, id: i64) -> Re
     db::delete(&conn, id).map_err(|e| e.to_string())
 }
 
+/// Roll into a new season: age players, retire, intake youth, reset fixtures.
+#[tauri::command]
+pub fn start_new_season(state: SharedState<'_>) -> Result<CareerView, String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_mut().ok_or("no career in progress")?;
+    let season = career.state.season;
+    let report = crate::core::season::roll_season(&mut career.state, &state.world, season);
+    career.state.season = season + 1;
+    career.players = career.state.players.clone();
+    for headline in report.retired.iter().take(3) {
+        career.state.news.insert(
+            0,
+            crate::db::NewsItem {
+                day: 1,
+                headline: format!("{} has retired", headline),
+            },
+        );
+    }
+    for headline in report.intake.iter().take(3) {
+        career.state.news.insert(
+            0,
+            crate::db::NewsItem {
+                day: 1,
+                headline: format!("{} joins from the academy", headline),
+            },
+        );
+    }
+    Ok(build_view(career, &state.world))
+}
+
+/// Transfer-window listings for the player's club.
+#[tauri::command]
+pub fn get_transfer_pool(state: SharedState<'_>) -> Result<Vec<crate::core::transfers::TransferListing>, String> {
+    let guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard
+        .as_ref()
+        .ok_or("no career in progress")?;
+    let seed = career.state.seed ^ ((career.state.season as u64) << 20);
+    Ok(crate::core::transfers::build_transfer_pool(
+        &state.world,
+        &career.players,
+        career.state.player_team_id,
+        seed,
+    ))
+}
+
+/// Bid for a listed player.
+#[tauri::command]
+pub fn bid_for_player(
+    state: SharedState<'_>,
+    player_id: u32,
+    offered_wage: u32,
+) -> Result<crate::core::transfers::BidOutcome, String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_mut().ok_or("no career in progress")?;
+    let seed = career.state.seed ^ ((career.state.season as u64) << 20);
+    let listing = crate::core::transfers::build_transfer_pool(
+        &state.world,
+        &career.players,
+        career.state.player_team_id,
+        seed,
+    )
+    .into_iter()
+    .find(|l| l.player_id == player_id)
+    .ok_or_else(|| format!("player {player_id} is not in the transfer pool"))?;
+
+    let budget = career.state.budget.unwrap_or(1_000_000) as u64;
+    let outcome = crate::core::transfers::place_bid(
+        &state.world,
+        &mut career.players,
+        career.state.player_team_id,
+        &listing,
+        offered_wage,
+        budget,
+    );
+    if matches!(outcome, crate::core::transfers::BidOutcome::Accepted { .. }) {
+        career.state.players = career.players.clone();
+        let wage_bill = crate::core::transfers::wage_bill(&career.players, career.state.player_team_id);
+        career.state.budget = Some((budget as i64 - wage_bill as i64).max(0));
+        let name = listing.name.clone();
+        career.state.news.insert(
+            0,
+            crate::db::NewsItem {
+                day: career.state.season_day,
+                headline: format!("{} signs for {}", name, career.state.player_team_name.clone()),
+            },
+        );
+    }
+    Ok(outcome)
+}
+
+/// Release a player from your squad.
+#[tauri::command]
+pub fn release_player(state: SharedState<'_>, player_id: u32) -> Result<(), String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_mut().ok_or("no career in progress")?;
+    let team_id = career.state.player_team_id;
+    let before = crate::core::transfers::squad_size(&career.players, team_id);
+    if before <= 11 {
+        return Err("you cannot reduce your squad below a full XI".into());
+    }
+    crate::core::transfers::release_player(&mut career.players, team_id, player_id)?;
+    career.state.players = career.players.clone();
+    Ok(())
+}
+
+/// Club finances: budget, wage bill, squad size.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Finances {
+    pub budget: i64,
+    pub wage_bill: u32,
+    pub squad_size: usize,
+}
+
+#[tauri::command]
+pub fn get_finances(state: SharedState<'_>) -> Result<Finances, String> {
+    let guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard
+        .as_ref()
+        .ok_or("no career in progress")?;
+    let team_id = career.state.player_team_id;
+    Ok(Finances {
+        budget: career
+            .state
+            .budget
+            .unwrap_or_else(|| {
+                state
+                    .world
+                    .teams
+                    .iter()
+                    .find(|t| t.id == team_id)
+                    .map(|t| t.budget)
+                    .unwrap_or(1_000_000)
+            }),
+        wage_bill: crate::core::transfers::wage_bill(&career.players, team_id),
+        squad_size: crate::core::transfers::squad_size(&career.players, team_id),
+    })
+}
+
 /// Skip to the next match day, simulating other fixtures.
 #[tauri::command]
 pub fn advance_day(state: SharedState<'_>) -> Result<CareerView, String> {

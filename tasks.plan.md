@@ -121,7 +121,7 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 
 ## M5 — Deep systems (toward G2)
 
-- [ ] P5.1 Budgets, bidding (typeable value), loans, releases
+- [x] P5.1 Off-season: budget + wage bill, transfer pool with reputation gate, bidding (accepts at/above wage), releases (min XI guard)
 - [ ] P5.2 U19/2nd XI pipeline + training + form/fitness/injuries + retirements/regen
 - [ ] P5.3 International FTP + World Challenge tournaments + rankings
 - [ ] P5.4 Franchise auction (IPL/BPL-style genericised) + assistant delegation

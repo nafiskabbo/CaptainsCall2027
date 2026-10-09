@@ -89,11 +89,14 @@ impl Career {
             }],
             selections: Default::default(),
             players: Vec::new(),
+            budget: None,
+            season: 1,
             seed,
         };
 
         let mut state = state;
         state.players = world.players.clone();
+        state.budget = None;
         Ok(Career {
             state,
             players: world.players.clone(),
