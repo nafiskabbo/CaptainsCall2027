@@ -56,13 +56,12 @@ pub fn world_cup_fixtures(
 
     let mut out = Vec::new();
     let mut id = 900_000u32;
-    let group_names = ["A", "B", "C", "D"];
     let groups: Vec<Vec<u32>> = teams.chunks(3).map(|c| c.to_vec()).collect();
 
     // Group stage: round robin inside each group of 3.
     let mut day = start_day;
     for (gi, group) in groups.iter().enumerate() {
-        let label = group_names.get(gi).copied().unwrap_or("Z");
+        let label = group_label(gi);
         for i in 0..group.len() {
             for j in (i + 1)..group.len() {
                 let (home, away) = if (i + j) % 2 == 0 {
@@ -83,7 +82,7 @@ pub fn world_cup_fixtures(
                         stage: None,
                         result: None,
                     },
-                    stage: Stage::Group(label.into()),
+                    stage: Stage::Group(label.clone()),
                 });
                 id += 1;
                 day += 2;
@@ -91,14 +90,11 @@ pub fn world_cup_fixtures(
         }
     }
 
-    // Knockout rounds use placeholder slots: 0 = winner of group A, etc.
-    // The engine fills these in as the group stage resolves.
-    let semis = [(Stage::Group("A".into()), 0), (Stage::Group("B".into()), 1)];
-    let _ = semis;
-
+    // Knockout rounds start as placeholders: `KnockoutPairings::from_groups`
+    // fills these slots once the group stage produces standings, so a
+    // semi-final or final is never left holding an unplayable team id.
     let mut knockout_day = day + 4;
-    // Two semi-finals (placeholders resolved by the UI/engine when known).
-    for i in 0..2u32 {
+    for _ in 0..2u32 {
         out.push(InternationalFixture {
             fixture: Fixture {
                 id,
@@ -116,7 +112,6 @@ pub fn world_cup_fixtures(
         });
         id += 1;
         knockout_day += 2;
-        let _ = i;
     }
     out.push(InternationalFixture {
         fixture: Fixture {
@@ -147,6 +142,65 @@ pub fn resolve_knockouts(fixtures: &mut [InternationalFixture], qualifiers: &[(u
             entry.fixture.away_id = *away;
         }
     }
+}
+
+/// Semi-finalists and the final pairing implied by a completed group stage.
+///
+/// A knockout fixture is only playable once both of its slots hold real team
+/// ids. The original World Challenge filled these in as the groups resolved;
+/// leaving them as `0` made the semi-finals and final permanently unplayable
+/// and meant the season could never complete.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KnockoutPairings {
+    /// `[A1 v B2, A2 v B1]` — top two of each group, paired across groups.
+    pub semi_finals: [(u32, u32); 2],
+}
+
+impl KnockoutPairings {
+    /// Derive the semi-final pairing from a finished group stage.
+    ///
+    /// Returns `None` until every group game has a result, since the standings
+    /// are meaningless before then.
+    pub fn from_groups(fixtures: &[InternationalFixture], group_count: usize) -> Option<Self> {
+        let mut semis: Vec<(u32, u32)> = Vec::new();
+        for a in 0..group_count / 2 {
+            let label_a = group_label(a);
+            let label_b = group_label(a + 1);
+            let table_a = group_table(fixtures, &label_a);
+            let table_b = group_table(fixtures, &label_b);
+            // Each group needs two finishers before a semi-final can be seeded.
+            let (Some(a1), Some(a2)) = (table_a.first(), table_a.get(1)) else {
+                return None;
+            };
+            let (Some(b1), Some(b2)) = (table_b.first(), table_b.get(1)) else {
+                return None;
+            };
+            semis.push((a1.team_id, b2.team_id));
+            semis.push((a2.team_id, b1.team_id));
+            if semis.len() == 2 {
+                break;
+            }
+        }
+        Some(KnockoutPairings {
+            semi_finals: [semis[0], semis[1]],
+        })
+    }
+}
+
+/// Group label for the nth group ("A", "B", ...).
+pub fn group_label(index: usize) -> String {
+    char::from_u32(b'A' as u32 + index as u32)
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| format!("G{index}"))
+}
+
+/// True when every fixture that takes part in the group stage has a result.
+pub fn groups_complete(fixtures: &[InternationalFixture]) -> bool {
+    let group_games: Vec<&InternationalFixture> = fixtures
+        .iter()
+        .filter(|f| matches!(f.stage, Stage::Group(_)))
+        .collect();
+    !group_games.is_empty() && group_games.iter().all(|f| f.fixture.result.is_some())
 }
 
 /// A bilateral tour: `matches` games against one opponent.

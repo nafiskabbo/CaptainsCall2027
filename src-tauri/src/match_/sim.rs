@@ -590,9 +590,31 @@ impl SimState {
             None => false,
         };
         let time_up = self.cfg.format.max_overs().is_none() && self.balls_left_in_match() == 0;
-        if all_out || declared || overs_done || time_up {
+        // A limited-overs chase ends the instant the target is passed, on the
+        // winning hit itself. Without this the batting side bowls out the full
+        // allocation and the result reports runs scored past the target (a
+        // 98 chase finishing on 171 in 20 overs), which reads as a broken match.
+        let target_reached = self.chase_target_reached();
+        if all_out || declared || overs_done || time_up || target_reached {
             self.finish_innings();
         }
+    }
+
+    /// True when the side chasing has reached the target to win the match.
+    ///
+    /// Only applies to the second innings of a limited-overs match, and uses the
+    /// full first-innings total (target = first innings runs + 1). Test cricket
+    /// has no target, so it always returns false there.
+    fn chase_target_reached(&self) -> bool {
+        let Some(max_overs) = self.cfg.format.max_overs() else {
+            return false; // Tests: no fixed target.
+        };
+        let _ = max_overs;
+        if self.current_innings != 1 || self.innings.len() < 2 {
+            return false;
+        }
+        let target = self.innings[0].runs + 1;
+        self.innings[1].runs >= target
     }
 
     fn wickets_per_innings(&self) -> u8 {

@@ -631,7 +631,109 @@ impl Career {
                 ));
             }
         }
+        // Filling the knockout slots here (rather than leaving them as team 0)
+        // is what lets the semi-finals and final actually resolve, so the
+        // tournament finishes and the season can complete.
+        self.resolve_international_knockouts(world);
         news
+    }
+
+    /// Seed the semi-final and final slots from the completed group stage.
+    ///
+    /// No-op unless this is an international career whose group games have all
+    /// been played. Safe to call on every day advance: it only writes slots that
+    /// are still empty (`home_id == 0`).
+    fn resolve_international_knockouts(&mut self, world: &World) {
+        use crate::core::tournaments::{self, Stage};
+
+        let player_is_national = world
+            .teams
+            .iter()
+            .find(|t| t.id == self.state.player_team_id)
+            .map(|t| t.is_national)
+            .unwrap_or(false);
+        if !player_is_national {
+            return;
+        }
+
+        // Rebuild the tournament view from the career's own fixtures so the
+        // standings reflect results the player has already simulated.
+        let entries: Vec<tournaments::InternationalFixture> = self
+            .state
+            .fixtures
+            .iter()
+            .filter(|f| f.competition_id >= 90_000 && f.competition_id < 90_100)
+            .map(|f| tournaments::InternationalFixture {
+                fixture: f.clone(),
+                stage: stage_from_label(f.stage.as_deref().unwrap_or("")),
+            })
+            .collect();
+        if !tournaments::groups_complete(&entries) {
+            return;
+        }
+        let group_count = entries
+            .iter()
+            .filter(|e| matches!(e.stage, Stage::Group(_)))
+            .count();
+        let Some(pairings) = tournaments::KnockoutPairings::from_groups(&entries, group_count)
+        else {
+            return;
+        };
+
+        let ground_of = |id: u32| {
+            world
+                .teams
+                .iter()
+                .find(|t| t.id == id)
+                .map(|t| t.home_ground_id)
+                .unwrap_or(1)
+        };
+
+        // Semi-finals, in fixture order. Collect the empty slots up front:
+        // filtering on `home_id == 0` while filling them would shrink the
+        // candidate list mid-loop and pair every semi-final with the same tie.
+        let empty_semis: Vec<usize> = self
+            .state
+            .fixtures
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| f.competition_id == 90_100 && f.home_id == 0)
+            .map(|(i, _)| i)
+            .collect();
+        for (slot, (home, away)) in pairings.semi_finals.iter().enumerate() {
+            let Some(index) = empty_semis.get(slot).copied() else {
+                break;
+            };
+            let f = &mut self.state.fixtures[index];
+            f.home_id = *home;
+            f.away_id = *away;
+            f.ground_id = ground_of(*home);
+        }
+
+        // The final is the winners of the two semi-finals.
+        let semi_results: Vec<(u32, u32)> = self
+            .state
+            .fixtures
+            .iter()
+            .filter(|f| f.competition_id == 90_100)
+            .filter_map(|f| {
+                f.result
+                    .as_ref()
+                    .and_then(|r| r.winner_id.map(|w| (f.home_id, w)))
+            })
+            .collect();
+        if semi_results.len() == 2 {
+            if let Some(f) = self
+                .state
+                .fixtures
+                .iter_mut()
+                .find(|f| f.competition_id == 90_101 && f.home_id == 0)
+            {
+                f.home_id = semi_results[0].1;
+                f.away_id = semi_results[1].1;
+                f.ground_id = ground_of(semi_results[0].1);
+            }
+        }
     }
 
     /// Move to the next day with fixtures; auto-simulate passed days.
@@ -639,16 +741,35 @@ impl Career {
     /// "Fast forward" from the career action bar: skips idle days, simulates the
     /// rounds in between (never the player's own match) and lands on the next
     /// scheduled match day.
+    ///
+    /// The player's own fixtures are never auto-simulated — only the player can
+    /// play them — so fast-forward stops *at* the player's next fixture rather
+    /// than sailing past it. Otherwise repeated fast-forwards would leave the
+    /// player's own group games unplayed, the group tables unresolved and the
+    /// season permanently incomplete.
     pub fn advance_day(&mut self, world: &World) -> Vec<NewsItem> {
         let current = self.state.season_day;
-        let next = self
+        let my_next = self
             .state
             .fixtures
             .iter()
-            .filter(|f| f.day > current && f.result.is_none())
+            .filter(|f| {
+                f.day > current
+                    && f.result.is_none()
+                    && (f.home_id == self.state.player_team_id
+                        || f.away_id == self.state.player_team_id)
+            })
             .map(|f| f.day)
-            .min()
-            .unwrap_or(current + 1);
+            .min();
+        let next = my_next.unwrap_or_else(|| {
+            self.state
+                .fixtures
+                .iter()
+                .filter(|f| f.day > current && f.result.is_none())
+                .map(|f| f.day)
+                .min()
+                .unwrap_or(current + 1)
+        });
         let mut news = Vec::new();
         for _ in 0..(next - current) {
             news.extend(self.advance_one_day(world));
@@ -803,6 +924,31 @@ fn select_for(career: &Career, team: &Team, format: Format) -> TeamSelection {
         // Use the career's developed squad for our own side so auto-picks
         // reflect growth rather than the bundled database.
         TeamSelection::auto_for(team, &career.players, format)
+    }
+}
+
+/// Recover a [`tournaments::Stage`] from its serialised label.
+///
+/// Fixtures persist only the label string, so group standings have to be
+/// rebuilt from these when the knockout bracket is seeded.
+fn stage_from_label(label: &str) -> crate::core::tournaments::Stage {
+    use crate::core::tournaments::Stage;
+    if label == "Semi-final" {
+        Stage::SemiFinal
+    } else if label == "Final" {
+        Stage::Final
+    } else if let Some(group) = label.strip_prefix("Group ") {
+        Stage::Group(group.to_string())
+    } else if let Some(n) = label
+        .strip_prefix("1st ")
+        .or_else(|| label.strip_prefix("2nd "))
+        .or_else(|| label.strip_prefix("3rd "))
+        .or_else(|| label.strip_prefix("4th "))
+        .or_else(|| label.strip_prefix("5th "))
+    {
+        Stage::Series(n.to_string())
+    } else {
+        Stage::Group(String::new())
     }
 }
 

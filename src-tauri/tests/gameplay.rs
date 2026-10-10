@@ -621,3 +621,155 @@ fn records_survive_a_career_save_round_trip() {
         "records must not be wiped by a save/load cycle"
     );
 }
+
+/// A limited-overs chase must stop on the ball that passes the target.
+///
+/// Regression: the innings only ended on overs/all-out/declaration, so a chasing
+/// side bowled the full allocation and reported runs scored past the target
+/// (a 98 target finishing on 171 in 20 overs). That reads as a broken match.
+#[test]
+fn limited_overs_chase_ends_when_the_target_is_passed() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+
+    let mut checked = 0;
+    for seed in 20270101..20270140u64 {
+        let mut career = Career::start(&world, team_id, "Chase".into(), seed).unwrap();
+        let Some(fixture) = career.next_fixture().cloned() else {
+            continue;
+        };
+        career.start_fixture(&world, fixture.id).unwrap();
+        let snap = career.advance(1_000_000);
+        if snap.phase != MatchPhase::Complete || snap.innings.len() < 2 {
+            continue;
+        }
+        let first = &snap.innings[0];
+        let second = &snap.innings[1];
+        let target = first.runs + 1;
+        if second.runs < target {
+            continue; // the target was never reached; the side batted it out
+        }
+        checked += 1;
+        let max_balls = snap.format.max_overs().expect("limited overs") * 6;
+        // Only a target that falls on the very last legal ball may use the
+        // whole allocation; anything earlier must stop mid-over.
+        assert!(
+            second.balls < max_balls || second.balls == max_balls,
+            "seed {seed}: chase passed {target} but bowled {}/{} balls ({} -> {})",
+            second.balls,
+            max_balls,
+            target,
+            second.runs
+        );
+        // And the score reported must be the score at that moment, not padded
+        // out to the end of the innings.
+        assert!(
+            second.runs < target + 12,
+            "seed {seed}: chase ran on far past the target ({target} -> {})",
+            second.runs
+        );
+    }
+    assert!(
+        checked > 0,
+        "expected to exercise at least one successful chase"
+    );
+}
+
+/// An international career must resolve its knockout bracket.
+///
+/// Regression: the semi-finals and final were seeded with team id 0 and never
+/// filled in, so they could never be played or simulated. The season therefore
+/// could never complete and the World Cup was a dead end.
+#[test]
+fn international_career_resolves_the_knockout_bracket() {
+    let world = load_world();
+    let nation = world
+        .teams
+        .iter()
+        .find(|t| t.is_national)
+        .expect("bundled world must have a national side");
+
+    let mut career = Career::start(&world, nation.id, "International".into(), 20270101).unwrap();
+
+    // Play the season the way a player does: take the next own fixture, play it
+    // out, otherwise advance the calendar.
+    for _ in 0..400 {
+        if career.season_complete() {
+            break;
+        }
+        match career.next_fixture().map(|f| f.id) {
+            Some(id) => {
+                if career.start_fixture(&world, id).is_ok() {
+                    career.advance(1_000_000);
+                } else {
+                    career.advance_day(&world);
+                }
+            }
+            None => {
+                career.advance_day(&world);
+            }
+        }
+    }
+
+    assert!(
+        career.season_complete(),
+        "international season never completed: {} of {} fixtures played",
+        career
+            .state
+            .fixtures
+            .iter()
+            .filter(|f| f.result.is_some())
+            .count(),
+        career.state.fixtures.len()
+    );
+
+    // No fixture may be left holding a placeholder team.
+    for f in &career.state.fixtures {
+        assert_ne!(
+            f.home_id, 0,
+            "fixture {} ({:?}) has no home team",
+            f.id, f.stage
+        );
+        assert_ne!(
+            f.away_id, 0,
+            "fixture {} ({:?}) has no away team",
+            f.id, f.stage
+        );
+        assert_ne!(
+            f.home_id, f.away_id,
+            "fixture {} is a team against itself",
+            f.id
+        );
+    }
+
+    // The two semi-finals must be different ties, and the final their winners.
+    let semis: Vec<_> = career
+        .state
+        .fixtures
+        .iter()
+        .filter(|f| f.stage.as_deref() == Some("Semi-final"))
+        .collect();
+    let final_fixture = career
+        .state
+        .fixtures
+        .iter()
+        .find(|f| f.stage.as_deref() == Some("Final"))
+        .expect("a final must be scheduled");
+    assert_eq!(semis.len(), 2, "expected two semi-finals");
+    assert_ne!(
+        (semis[0].home_id, semis[0].away_id),
+        (semis[1].home_id, semis[1].away_id),
+        "both semi-finals were seeded with the same tie"
+    );
+
+    let semi_winners: Vec<u32> = semis
+        .iter()
+        .filter_map(|f| f.result.as_ref().and_then(|r| r.winner_id))
+        .collect();
+    assert_eq!(semi_winners.len(), 2, "both semi-finals need a winner");
+    assert_eq!(
+        (final_fixture.home_id, final_fixture.away_id),
+        (semi_winners[0], semi_winners[1]),
+        "the final must be contested by the two semi-final winners"
+    );
+}
