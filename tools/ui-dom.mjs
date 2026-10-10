@@ -86,10 +86,17 @@ window.__TAURI_INTERNALS__ = {
   convertFileSrc: (p) => p,
 };
 window.console.error = (...a) => console.error("[react]", ...a);
-window.addEventListener("error", (e) => console.error("[window error]", e.message));
-window.addEventListener("unhandledrejection", (e) =>
-  console.error("[rejection]", e.reason?.stack ?? e.reason),
-);
+
+// Render errors are surfaced through window.console.error (already hooked) and
+// a guarded window error listener; jsdom windows reject addEventListener on
+// some runtimes, so failure here must not abort the dump.
+try {
+  window.addEventListener("error", (e) =>
+    console.error("[window error]", e.message, "\n", (e.error && e.error.stack) || "(no stack)"),
+  );
+} catch {
+  /* unsupported on this runtime */
+}
 
 const mode = process.argv[2] ?? "world";
 
@@ -97,11 +104,13 @@ if (mode === "world") {
   window.eval(out.outputFiles[0].text);
   await delay(2500);
   dump(window, "WORLD SCREEN");
+  const click = (el) =>
+    el.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
   const begin = [...window.document.querySelectorAll("button")].find((b) =>
     /begin season/i.test(b.textContent || ""),
   );
   if (begin) {
-    begin.click();
+    click(begin);
     await delay(1500);
     dump(window, "AFTER BEGIN SEASON");
   }
@@ -137,14 +146,14 @@ if (mode === "world") {
   const begin = [...window.document.querySelectorAll("button")].find((b) =>
     /begin season/i.test(b.textContent || ""),
   );
-  if (begin) begin.click();
+  if (begin) begin.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
   await delay(1500);
   dump(window, "CAREER");
   const cont = [...window.document.querySelectorAll("button")].find((b) =>
     /^continue/i.test((b.textContent || "").trim()),
   );
   console.log("clicking CONTINUE...");
-  if (cont) cont.click();
+  if (cont) cont.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
   await delay(2500);
   dump(window, "MATCH");
   const snap = await call("get_match");

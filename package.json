@@ -12,10 +12,10 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test": "tsc --noEmit",
-    "generate:world": "node tools/generate-world.mjs",
-    "validate:world": "node tools/validate-world.mjs",
-    "test:ui": "node tools/ui-e2e.mjs",
-    "test:contract": "node tools/contract-check.mjs",
+    "generate:world": "bun tools/generate-world.mjs",
+    "validate:world": "bun tools/validate-world.mjs",
+    "test:ui": "bun tools/ui-e2e.mjs",
+    "test:contract": "bun tools/contract-check.mjs",
     "e2e:harness": "cargo run --manifest-path src-tauri/Cargo.toml --example e2e -- 127.0.0.1:8787 target/e2e"
   },
   "dependencies": {

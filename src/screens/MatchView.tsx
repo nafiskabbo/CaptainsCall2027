@@ -79,11 +79,19 @@ export default function MatchView({
     // without it the whole match screen would unmount. Fall back to the window
     // resize event, which is enough to keep the canvas sized correctly.
     let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver === "function") {
-      observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-    } else {
-      window.addEventListener("resize", resize);
+    let onWindowResize = false;
+    try {
+      if (typeof ResizeObserver === "function") {
+        observer = new ResizeObserver(resize);
+        observer.observe(canvas);
+      } else {
+        window.addEventListener("resize", resize);
+        onWindowResize = true;
+      }
+    } catch {
+      // A host that exposes neither path must not take the match screen down.
+      observer = null;
+      onWindowResize = false;
     }
 
     const draw = () => {
@@ -381,7 +389,7 @@ export default function MatchView({
       cancelAnimationFrame(raf.current);
       if (observer) {
         observer.disconnect();
-      } else {
+      } else if (onWindowResize) {
         window.removeEventListener("resize", resize);
       }
     };

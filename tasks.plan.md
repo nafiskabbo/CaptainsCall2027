@@ -16,7 +16,7 @@
 
 ## G0 ACHIEVED (2026-10-09)
 
-Playable vertical slice running on the desktop: `npm run tauri:dev`.
+Playable vertical slice running on the desktop: `bun run tauri:dev`.
 
 - 12 fictional nations / 37 teams / 300 players / 12 competitions, embedded DB `2027.01`
 - Start any fixture, pick format + ground, watch the 2D overhead canvas view
@@ -44,7 +44,7 @@ original's own screenshots:
 
  (2026-10-09)
 
-`npm run tauri:dev` — a full career loop, not just single matches:
+`bun run tauri:dev` — a full career loop, not just single matches:
 
 - **New career** → pick a fictional domestic side → season fixture list generated (circle-method round robin)
 - **Career home** → next-match card, fixtures, live table, news feed, squad, save/load/delete
@@ -173,12 +173,12 @@ store at a temp dir instead of an `AppHandle`.
 - `src-tauri/examples/e2e.rs` — the real command surface over HTTP, mirroring
   `lib.rs`'s handler list 1:1. Lives under `examples/`, never ships in the bundle.
 - `e2e.html` + `src/mock-e2e.ts` — the browser transport shim (same contract).
-- `npm run test:ui` (`tools/ui-e2e.mjs`) — drives the **compiled React app** in
+- `bun run test:ui` (`tools/ui-e2e.mjs`) — drives the **compiled React app** in
   jsdom with every `invoke` routed to the real engine. 49 checks across the full
   player journey: setup → career controls → every tab → squad selection → live
   match (ball / over / to result / export / autoplay) → main screen → continue →
   a complete season rollover. Fails on React errors and unhandled rejections.
-- `npm run test:contract` (`tools/contract-check.mjs`) — diffs every
+- `bun run test:contract` (`tools/contract-check.mjs`) — diffs every
   `src/types.ts` interface against live engine JSON. Caught two further latent
   mismatches the eye missed: `training_focus` and the missing
   `CareerState.records` shape.
@@ -196,9 +196,9 @@ exist. Concretely:
    state object, or a screen that hardcodes a default instead of reading the
    saved value).
 3. Every field the UI reads must exist in the engine's JSON — enforced by
-   `npm run test:contract`.
+   `bun run test:contract`.
 4. Every screen reachable, and reachable from a working control — enforced by
-   `npm run test:ui`.
+   `bun run test:ui`.
 5. Career/mutating commands must surface failure to the user, not swallow it.
 
 ## AI workflow rules

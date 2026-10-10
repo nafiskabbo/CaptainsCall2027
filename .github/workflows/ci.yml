@@ -47,22 +47,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
+          bun-version: latest
 
       - name: Install
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Typecheck
-        run: npx tsc -b
+        run: bunx tsc -b
 
       - name: Build
-        run: npm run build
+        run: bun run build
 
-      - name: Validate world database
-        run: npm run validate:world
+      - name: UI end-to-end (real UI against the real engine)
+        run: bun run test:ui
+
+      - name: API contract (types.ts against engine JSON)
+        run: bun run test:contract
 
   database:
     name: Database policy
@@ -70,16 +72,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
+          bun-version: latest
+
+      - name: Install
+        run: bun install --frozen-lockfile
 
       - name: Validate schema and business rules
-        run: npm run validate:world
+        run: bun run validate:world
 
       - name: No trademarked league names
         run: |
-          node -e "
+          bun -e "
           const db = require('./data/world.json');
           const banned = ['ipl','bpl','psl','cpl','big bash'];
           const bad = db.competitions.filter(c =>
@@ -93,7 +98,7 @@ jobs:
 
       - name: DB is versioned and non-empty
         run: |
-          node -e "
+          bun -e "
           const db = require('./data/world.json');
           if (!/^\d{4}\.\d+$/.test(db.db_version)) {
             console.error('db_version must be YYYY.NN, got ' + db.db_version);

@@ -18,6 +18,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
+import net from "node:net";
 import esbuild from "esbuild";
 import jsdomPkg from "jsdom";
 
@@ -68,6 +69,22 @@ async function bootApp() {
   // Compile the entry point the same way Vite would, but into one IIFE we can
   // evaluate inside jsdom. CSS is stubbed: jsdom does not cascade for these
   // assertions and the bundle must stay self-contained.
+  // Errors raised inside the page. jsdom's VirtualConsole carries both console
+  // output and jsdomError, so we capture React's render errors there too.
+  const consoleErrors = [];
+  const virtualConsole = new jsdomPkg.VirtualConsole();
+  virtualConsole.on("jsdomError", (e) => {
+    const detail = e.detail;
+    const stack = detail?.stack ?? e.stack;
+    const body = typeof detail === "object" && detail !== null ? detail : e;
+    consoleErrors.push(
+      `${e.message ?? e}` +
+        (stack ? `\n      at ${String(stack).split("\n").slice(1, 4).join("\n      at ")}` : "") +
+        (body?.constructor?.name ? `\n      (${body.constructor.name})` : ""),
+    );
+  });
+  virtualConsole.on("error", (...a) => consoleErrors.push(a.map((x) => String(x)).join(" ")));
+
   const out = await esbuild.build({
     entryPoints: [path.join(ROOT, "src/main.tsx")],
     bundle: true,
@@ -99,6 +116,10 @@ async function bootApp() {
     url: "http://localhost:1420/e2e.html",
     pretendToBeVisual: true,
     runScripts: "outside-only",
+    // jsdom's VirtualConsole rather than window-level listeners: it works the
+    // same under Node and Bun, whereas Bun refuses addEventListener on a jsdom
+    // window and the harness would die before running a single check.
+    virtualConsole,
   });
   const { window } = dom;
 
@@ -134,14 +155,21 @@ async function bootApp() {
     convertFileSrc: (p) => p,
   };
 
-  const consoleErrors = [];
-  window.console.error = (...a) => {
-    consoleErrors.push(a.map((x) => String(x)).join(" "));
+  // Observers a browser would have. Supplying ResizeObserver also keeps the
+  // app on its primary code path rather than the resize-event fallback.
+  window.ResizeObserver ??= class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
   };
-  window.addEventListener("error", (e) => consoleErrors.push(String(e.message)));
-  window.addEventListener("unhandledrejection", (e) =>
-    consoleErrors.push(`unhandled rejection: ${e.reason?.message ?? e.reason}`),
-  );
+  window.IntersectionObserver ??= class IntersectionObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  };
 
   const code = out.outputFiles[0].text;
   window.eval(code);
@@ -179,13 +207,25 @@ async function until(label, predicate, { timeout = 6000, interval = 60 } = {}) {
   }
 }
 
-/** Clicks an element the way a user would: a real, bubbling DOM click. */
+/**
+ * Clicks an element the way a user would: a real, bubbling DOM click.
+ *
+ * Dispatches directly instead of calling `el.click()`, because jsdom's
+ * HTMLElement.click() fires a PointerEvent internally and that constructor's
+ * `view` check throws under some runtimes. React's root listener still sees a
+ * genuine click either way.
+ */
 function click(window, el) {
-  const b = el?.getBoundingClientRect?.();
-  if (VERBOSE && b) {
-    console.log(`      (click at ${Math.round(b.x + b.width / 2)},${Math.round(b.y + b.height / 2)})`);
+  if (VERBOSE) {
+    const b = el?.getBoundingClientRect?.();
+    if (b) {
+      console.log(`      (click at ${Math.round(b.x + b.width / 2)},${Math.round(b.y + b.height / 2)})`);
+    }
   }
-  el.click();
+  // No `view`: jsdom's UIEvent impl wants its internal Window object, and the
+  // wrapper is rejected on some runtimes. React's delegated listener does not
+  // need it.
+  el.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
 }
 
 async function clickText(window, label, opts) {
@@ -236,6 +276,26 @@ function startHarness() {
 }
 
 let stopping = false;
+
+/** Fails fast with an actionable message if the port is already taken. */
+async function assertPortFree(url) {
+  const { hostname, port } = new URL(url);
+  await new Promise((resolve, reject) => {
+    const probe = net
+      .connect(Number(port), hostname)
+      .once("error", () => resolve())
+      .once("connect", () => {
+        probe.destroy();
+        reject(
+          new Error(
+            `something is already listening on ${hostname}:${port}\n` +
+              `  An orphaned harness from an earlier run. Clear it with:\n` +
+              `  pkill -f "examples/e2e"`,
+          ),
+        );
+      });
+  });
+}
 
 async function waitForHarness(timeout = 120_000) {
   const start = Date.now();
@@ -560,6 +620,7 @@ async function scenarioSeasonRollover({ window, calls }) {
 
 async function main() {
   console.log(`\nCaptain's Call 2027 — UI e2e\nharness: ${HARNESS_URL}\n`);
+  await assertPortFree(HARNESS_URL);
   const harness = startHarness();
   let booted;
   try {
@@ -601,7 +662,11 @@ async function main() {
     }
     process.exit(failures.length === 0 ? 0 : 1);
   } catch (error) {
-    console.error(`\nharness error: ${error.message}`);
+    console.error(`\nharness error: ${error.message}\n${error.stack ?? ""}`);
+    if (booted?.consoleErrors?.length) {
+      console.error("\npage errors:");
+      for (const line of booted.consoleErrors.slice(0, 6)) console.error(`  ${line}`);
+    }
     if (booted) booted.dom.window.close();
     stopping = true;
     harness.kill("SIGTERM");

@@ -70,9 +70,9 @@ This stack is ideal for AI-only development: Rust core has strict types/tests, f
 ## Run it
 
 ```bash
-npm install
-npm run tauri:dev     # desktop app (Rust core + React UI)
-npm run tauri:build   # release bundle: .app + .dmg on macOS
+bun install
+bun run tauri:dev     # desktop app (Rust core + React UI)
+bun run tauri:build   # release bundle: .app + .dmg on macOS
 ```
 
 Release artifacts land in `src-tauri/target/release/bundle/` (≈17 MiB app,
@@ -81,9 +81,9 @@ Release artifacts land in `src-tauri/target/release/bundle/` (≈17 MiB app,
 Useful scripts:
 
 ```bash
-npm run generate:world   # regenerate the fictional 2027 database
-npm run validate:world   # validate data/world.json against data/schema
-npm test                # TypeScript check
+bun run generate:world   # regenerate the fictional 2027 database
+bun run validate:world   # validate data/world.json against data/schema
+bun test                # TypeScript check
 cargo test --manifest-path src-tauri/Cargo.toml   # engine + gameplay tests
 ```
 
@@ -96,7 +96,7 @@ cargo test --manifest-path src-tauri/Cargo.toml   # engine + gameplay tests
 
 ## Status
 
-**G0 and G1 playable** — `npm run tauri:dev` gives you the full loop: pick a fictional
+**G0 and G1 playable** — `bun run tauri:dev` gives you the full loop: pick a fictional
 domestic side, generate the season, play your fixtures ball-by-ball with the 2D overhead
 view and in-match orders, auto-sim the rest of the competition, watch the table and news
 update, save/load careers.
@@ -115,12 +115,12 @@ Three layers, all runnable locally:
 
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml   # 104 engine + integration tests
-npm run test:contract                            # types.ts ↔ engine JSON contract
-npm run test:ui                                  # 49 checks over the real UI
-npm run tauri:dev                                # or: npm run tauri:build
+bun run test:contract                            # types.ts ↔ engine JSON contract
+bun run test:ui                                  # 49 checks over the real UI
+bun run tauri:dev                                # or: bun run tauri:build
 ```
 
-`npm run test:ui` is the interesting one: it compiles the real React app, runs it
+`bun run test:ui` is the interesting one: it compiles the real React app, runs it
 in jsdom, and routes every Tauri `invoke` to the real Rust engine (see
 `src-tauri/examples/e2e.rs`, `e2e.html` and `tools/ui-e2e.mjs`). It walks the
 entire player journey — start a career, use every career control and tab, pick

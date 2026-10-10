@@ -40,3 +40,10 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# e2e scratch data (harness saves/scorecards)
+target/e2e/
+target/e2e-contract/
+target/e2e-probe/
+target/e2e-p2/
+target/e2e-*/
