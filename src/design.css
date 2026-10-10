@@ -379,3 +379,65 @@ body {
   display: flex;
   gap: 0.3rem;
 }
+
+/* ============================================================
+   Field textures — the original's photographic ground backdrop
+   ============================================================ */
+
+/* A richer stadium: stand band, floodlight bloom and mown stripes. */
+.content {
+  background:
+    /* floodlight pools from the corners */
+    radial-gradient(38% 26% at 8% 4%, rgba(255, 252, 226, 0.1), transparent 70%),
+    radial-gradient(38% 26% at 92% 4%, rgba(255, 252, 226, 0.1), transparent 70%),
+    /* stand structure behind the field */
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.055) 0 3px,
+      rgba(0, 0, 0, 0.05) 3px 7px
+    ),
+    /* outfield gradient */
+    radial-gradient(
+      ellipse 135% 95% at 50% 118%,
+      #0a5c1a 0%,
+      var(--field-600) 34%,
+      var(--field-800) 62%,
+      var(--field-900) 100%
+    );
+}
+
+/* mown stripes across the outfield, subtle */
+.content__inner::before {
+  content: "";
+  position: absolute;
+  inset: 0 -1rem -1.3rem;
+  pointer-events: none;
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.018) 0 42px,
+    rgba(0, 0, 0, 0.02) 42px 84px
+  );
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 100%, #000 30%, transparent 78%);
+}
+
+/* the crowd band along the bottom of the content area */
+.content::before {
+  height: 52%;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.06) 0 2px,
+      rgba(0, 0, 0, 0.04) 2px 6px
+    ),
+    radial-gradient(ellipse 85% 100% at 50% 100%, rgba(0, 0, 0, 0.55) 28%, transparent 76%);
+  mask-image: radial-gradient(ellipse 94% 100% at 50% 100%, #000 34%, transparent 82%);
+}
+
+/* a batsman silhouette watermark, bottom-right like the original */
+.content::after {
+  width: 168px;
+  height: 208px;
+  opacity: 0.16;
+  filter: blur(0.4px);
+}

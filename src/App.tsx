@@ -19,7 +19,7 @@ export default function App() {
   const [career, setCareer] = useState<CareerView | null>(null);
   const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
   /** Sidebar-driven tab + squad search, shared with CareerScreen. */
-  const [careerTab, setCareerTab] = useState("fixtures");
+  const [careerTab, setCareerTab] = useState("today");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function App() {
   const startCareer = async (teamId: number, name: string, seed: number) => {
     const view = await api.startCareer({ teamId, name, seed });
     setCareer(view);
-    setCareerTab("fixtures");
+    setCareerTab("today");
     setQuery("");
     setScreen("career");
   };
@@ -91,11 +91,11 @@ export default function App() {
   if (screen === "career" && career) {
     const nation = world.nations.find((n) => n.id === career.state.nation_id);
     const items: SidebarItem[] = [
-      { id: "fixtures", label: "Fixtures", icon: "▤", active: true },
-      { id: "table", label: "Table", icon: "▮", onClick: () => setCareerTab("table") },
-      { id: "records", label: "Records", icon: "▮", onClick: () => setCareerTab("records") },
-      { id: "squad", label: "Squad", icon: "●", onClick: () => setCareerTab("squad") },
-      { id: "news", label: "News", icon: "✉", onClick: () => setCareerTab("news") },
+      { id: "fixtures", label: "Fixtures", icon: "list", active: true },
+      { id: "table", label: "Table", icon: "chart", onClick: () => setCareerTab("table") },
+      { id: "records", label: "Records", icon: "chart", onClick: () => setCareerTab("records") },
+      { id: "squad", label: "Squad", icon: "team", onClick: () => setCareerTab("squad") },
+      { id: "news", label: "News", icon: "news", onClick: () => setCareerTab("news") },
     ];
 
     return (
@@ -192,8 +192,8 @@ export default function App() {
           .slice(0, 3)
           .toUpperCase()}
         items={[
-          { id: "news", label: "Season review", icon: "✉", active: true },
-          { id: "records", label: "Records", icon: "▮" },
+          { id: "news", label: "Season review", icon: "news", active: true },
+          { id: "records", label: "Records", icon: "chart" },
         ]}
         actionBar={
           <>
@@ -237,8 +237,8 @@ export default function App() {
           .slice(0, 3)
           .toUpperCase()}
         items={[
-          { id: "news", label: "Off-season", icon: "✉", active: true },
-          { id: "team", label: "Squad", icon: "●" },
+          { id: "news", label: "Off-season", icon: "news", active: true },
+          { id: "team", label: "Squad", icon: "team" },
         ]}
         actionBar={
           <>
@@ -302,9 +302,9 @@ export default function App() {
         homeFlag={(homeNation?.short_name ?? "HM").slice(0, 3).toUpperCase()}
         awayFlag={(awayNation?.short_name ?? "AW").slice(0, 3).toUpperCase()}
         items={[
-          { id: "news", label: "Match", icon: "✉", active: true },
-          { id: "score", label: "Scorecard", icon: "●" },
-          { id: "opts", label: "Options", icon: "✓" },
+          { id: "news", label: "Match", icon: "news", active: true },
+          { id: "score", label: "Scorecard", icon: "team" },
+          { id: "opts", label: "Options", icon: "options" },
         ]}
         actionBar={
           <>

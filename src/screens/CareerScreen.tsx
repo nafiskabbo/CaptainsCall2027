@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../tools/api";
 import type { CareerView, MatchSnapshot, SaveSummary, World } from "../types";
+import { Panel, Select, Tabs } from "../ui";
 import SelectionScreen from "./SelectionScreen";
 
 interface Props {
@@ -38,7 +39,10 @@ export default function CareerScreen({
   searchQuery,
 }: Props) {
   const setTab = onTab as (t: string) => void;
+  // Tolerate either key ("fixtures" is the sidebar label, "today" the body).
+  const activeTab = tab === "fixtures" ? "today" : tab;
   const [filter, setFilter] = useState<"all" | "mine">("all");
+  const filterValue: string = filter;
   const [saves, setSaves] = useState<SaveSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -152,50 +156,40 @@ export default function CareerScreen({
 
       {status && <p className="muted">{status}</p>}
 
-      <section className="panel panel--flush">
-        <div className="panel__head">
-          <span className="panel__label--gold">{tabLabel(tab)}</span>
-          <div className="panel__headactions">
-            {tab === "today" && (
-              <>
-                <label htmlFor="filter" className="muted" style={{ margin: 0 }}>
-                  Filter
-                </label>
-                <select
-                  id="filter"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value as "all" | "mine")}
-                  style={{ width: 140 }}
-                >
-                  <option value="all">All leagues</option>
-                  <option value="mine">My team</option>
-                </select>
-              </>
+      <Panel
+        flush
+        goldTitle={TAB_LABELS[activeTab] ?? "Fixtures"}
+        actions={
+          <>
+            {activeTab === "today" && (
+              <Select
+                inlineLabel={false}
+                label="Filter"
+                options={[
+                  { value: "all", label: "All leagues" },
+                  { value: "mine", label: "My team" },
+                ]}
+                value={filterValue}
+                onChange={(e) => setFilter(e.target.value as "all" | "mine")}
+              />
             )}
-            {(
-              [
-                ["today", "Fixtures"],
-                ["table", "Table"],
-                ["records", "Records"],
-                ["news", "News"],
-                ["squad", "Squad"],
-                ["saves", "Saves"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={`tab ${tab === key ? "tab--active" : ""}`}
-                onClick={() => setTab(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ padding: "0.5rem 0.55rem 0.7rem" }}>
-        {tab === "today" && (
+            <Tabs
+              tabs={[
+                { id: "today", label: "Fixtures" },
+                { id: "table", label: "Table" },
+                { id: "records", label: "Records" },
+                { id: "news", label: "News" },
+                { id: "squad", label: "Squad" },
+                { id: "saves", label: "Saves" },
+              ]}
+              active={activeTab as "today"}
+              onChange={(id) => setTab(id)}
+            />
+          </>
+        }
+      >
+        <div className="panel__body">
+        {activeTab === "today" && (
           <div>
             {days
               .filter((d) => (filter === "mine" ? dayHasMyTeam(state.fixtures, d, myTeamId) : true))
@@ -246,7 +240,7 @@ export default function CareerScreen({
           </div>
         )}
 
-        {tab === "table" && (
+        {activeTab === "table" && (
           <table className="data">
             <thead>
               <tr>
@@ -277,7 +271,7 @@ export default function CareerScreen({
           </table>
         )}
 
-        {tab === "records" && (
+        {activeTab === "records" && (
           <table className="data">
             <thead>
               <tr>
@@ -323,7 +317,7 @@ export default function CareerScreen({
           </table>
         )}
 
-        {tab === "news" && (
+        {activeTab === "news" && (
           <ul style={{ listStyle: "none", margin: 0, padding: "0.4rem 0.6rem" }}>
             {[...state.news].reverse().map((n, i) => (
               <li
@@ -344,7 +338,7 @@ export default function CareerScreen({
           </ul>
         )}
 
-        {tab === "squad" && (
+        {activeTab === "squad" && (
           <table className="data">
             <thead>
               <tr>
@@ -367,7 +361,7 @@ export default function CareerScreen({
           </table>
         )}
 
-        {tab === "saves" && (
+        {activeTab === "saves" && (
           <table className="data">
             <thead>
               <tr>
@@ -406,7 +400,7 @@ export default function CareerScreen({
           </table>
         )}
         </div>
-      </section>
+      </Panel>
     </div>
   );
 }
@@ -419,10 +413,6 @@ const TAB_LABELS: Record<string, string> = {
   squad: "Squad",
   saves: "Saves",
 };
-
-function tabLabel(tab: string): string {
-  return TAB_LABELS[tab] ?? "Fixtures";
-}
 
 function NextMatchCard({
   world,

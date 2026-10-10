@@ -103,31 +103,40 @@ export default function MatchView({
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, w, h);
 
-      // ---- crowd ring ----
+      // ---- stadium bowl: stand tiers with a roof shadow ----
+      const stands = dayNight
+        ? ["#1b2436", "#141c2b", "#0e1522"]
+        : ["#26364c", "#1d2b3d", "#152233"];
       for (let ring = 0; ring < 3; ring++) {
-        const rr = R * (1.02 + ring * 0.13);
-        ctx.fillStyle = dayNight
-          ? `rgba(${26 - ring * 4}, ${38 - ring * 4}, ${58 - ring * 6}, 0.85)`
-          : `rgba(${40 - ring * 6}, ${52 - ring * 6}, ${72 - ring * 8}, 0.8)`;
+        const rr = R * (1.03 + ring * 0.14);
+        ctx.fillStyle = stands[ring];
         ctx.beginPath();
-        ctx.ellipse(cx, cy, rr, rr * 0.86, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, cy, rr, rr * 0.87, 0, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // crowd speckle
-      let s = 12345;
+      // roof lip: a bright rim where the stand overhangs the field
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, R * 1.02, R * 0.885, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // crowd speckle — deterministic, denser toward the outer tiers
+      let s = 20270101;
       const rnd = () => {
         s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
         return s / 4294967296;
       };
-      for (let i = 0; i < 900; i++) {
+      for (let i = 0; i < 1500; i++) {
         const a = rnd() * Math.PI * 2;
-        const rr = R * (1.0 + rnd() * 0.4);
+        const rr = R * (1.02 + rnd() * 0.42);
         const x = cx + Math.cos(a) * rr;
-        const y = cy + Math.sin(a) * rr * 0.86;
-        if (x < 0 || x > w || y < 0 || y > h) continue;
-        ctx.fillStyle = `rgba(${180 + rnd() * 60}, ${170 + rnd() * 60}, ${190 + rnd() * 60}, 0.5)`;
-        ctx.fillRect(x, y, 1.4, 1.4);
+        const y = cy + Math.sin(a) * rr * 0.87;
+        if (x < -4 || x > w + 4 || y < -4 || y > h + 4) continue;
+        const shade = 150 + rnd() * 90;
+        ctx.fillStyle = `rgba(${shade}, ${shade - 8}, ${shade + 14}, ${0.35 + rnd() * 0.4})`;
+        ctx.fillRect(x, y, 1.5, 1.5);
       }
 
       // ---- outfield ----
@@ -227,26 +236,37 @@ export default function MatchView({
         ctx.stroke();
       }
 
-      // ---- fielders ----
-      ctx.font = "10px 'Segoe UI', Arial, sans-serif";
+      // ---- fielders: head + shirt, with the surname above ----
+      ctx.font = "600 10px 'Segoe UI', Arial, sans-serif";
       fielders.forEach((f, i) => {
         const drift = Math.sin(time * f.speed * 6 + i) * 0.012;
         const a = f.angle + drift;
         const rr = R * (f.orbit + drift * 0.5);
         const x = cx + Math.cos(a) * rr * 1.05;
         const y = cy + Math.sin(a) * rr * 0.9;
-        ctx.fillStyle = "#f4f7fa";
+
+        // shirt
+        ctx.fillStyle = "#e8f0f7";
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.moveTo(x, y - 1);
+        ctx.lineTo(x - 3, y + 4);
+        ctx.lineTo(x + 3, y + 4);
+        ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
-        ctx.lineWidth = 0.6;
+        // head
+        ctx.fillStyle = "#f6d9b8";
+        ctx.beginPath();
+        ctx.arc(x, y - 3.4, 2.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
+        ctx.lineWidth = 0.5;
         ctx.stroke();
+
         const name = fielderNames[i] ?? "";
         if (name) {
           ctx.fillStyle = "#f2d67a";
           ctx.textAlign = "center";
-          ctx.fillText(name, x, y - 6);
+          ctx.fillText(name, x, y - 8);
         }
       });
 
@@ -322,17 +342,25 @@ export default function MatchView({
       // ---- floodlight pools for day/night ----
       if (dayNight) {
         for (const [lx, ly] of [
-          [cx - R * 0.7, cy - R * 0.72],
-          [cx + R * 0.7, cy - R * 0.72],
-          [cx - R * 0.7, cy + R * 0.7],
-          [cx + R * 0.7, cy + R * 0.7],
+          [cx - R * 0.78, cy - R * 0.8],
+          [cx + R * 0.78, cy - R * 0.8],
+          [cx - R * 0.78, cy + R * 0.72],
+          [cx + R * 0.78, cy + R * 0.72],
         ]) {
-          const flare = ctx.createRadialGradient(lx, ly, 0, lx, ly, R * 0.4);
-          flare.addColorStop(0, "rgba(255, 250, 220, 0.28)");
-          flare.addColorStop(1, "rgba(255, 250, 220, 0)");
+          // the mast
+          ctx.strokeStyle = "rgba(220, 228, 240, 0.35)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(lx, ly - R * 0.1);
+          ctx.stroke();
+          // the lamp array
+          const flare = ctx.createRadialGradient(lx, ly - R * 0.1, 0, lx, ly - R * 0.1, R * 0.42);
+          flare.addColorStop(0, "rgba(255, 252, 226, 0.34)");
+          flare.addColorStop(1, "rgba(255, 252, 226, 0)");
           ctx.fillStyle = flare;
           ctx.beginPath();
-          ctx.arc(lx, ly, R * 0.4, 0, Math.PI * 2);
+          ctx.arc(lx, ly - R * 0.1, R * 0.42, 0, Math.PI * 2);
           ctx.fill();
         }
       }

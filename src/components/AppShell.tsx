@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Icon } from "../ui";
 
 export interface SidebarItem {
   id: string;
@@ -66,7 +67,7 @@ export default function AppShell({
               aria-current={item.active ? "page" : undefined}
             >
               <span className="navrow__icon" aria-hidden="true">
-                {item.icon}
+                <Icon name={item.icon} size={15} />
               </span>
               <span className="navrow__label">{item.label}</span>
               {item.badge ? <span className="navrow__badge">{item.badge}</span> : null}

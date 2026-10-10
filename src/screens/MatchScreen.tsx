@@ -11,6 +11,7 @@ import type {
   World,
 } from "../types";
 import MatchView from "./MatchView";
+import { Button, Meter, Panel, Stat } from "../ui";
 import ManhattanChart from "../components/ManhattanChart";
 
 interface Props {
@@ -286,33 +287,21 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
           {/* sim controls */}
           <div className="panel">
             <div className="btnrow" style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-              <button className="btn" disabled={busy || complete} onClick={() => advance(1)}>
-                Ball
-              </button>
-              <button className="btn" disabled={busy || complete} onClick={() => advance(6)}>
-                Over
-              </button>
-              <button
-                className="btn"
-                disabled={busy || complete}
-                onClick={() => advance(snapshot.format === "test" ? 36 : 12)}
+              <Button disabled={busy || complete} onClick={() =>advance(1)}>
+                Ball</Button>
+              <Button disabled={busy || complete} onClick={() =>advance(6)}>
+                Over</Button>
+              <Button disabled={busy || complete}
+                onClick={() =>advance(snapshot.format === "test" ? 36 : 12)}
               >
-                Session
-              </button>
-              <button className="btn" disabled={busy || complete} onClick={endInnings}>
-                End innings
-              </button>
-              <button
-                className="btn btn--danger"
-                disabled={busy || complete}
-                onClick={() => advance(100000)}
+                Session</Button>
+              <Button disabled={busy || complete} onClick={endInnings}>End innings</Button>
+              <Button variant="danger" disabled={busy || complete}
+                onClick={() =>advance(100000)}
               >
-                To result
-              </button>
+                To result</Button>
               <span className="sidebar__spacer" />
-              <button className="btn btn--ghost" onClick={exportCard}>
-                Export scorecard
-              </button>
+              <Button variant="ghost" onClick={exportCard}>Export scorecard</Button>
             </div>
             {complete && (
               <p style={{ marginTop: "0.5rem", fontWeight: 700, color: "var(--gold)" }}>
@@ -325,10 +314,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
 
         {/* ---- tactics + scorecards ---- */}
         <div className="stack">
-          <div className="panel">
-            <div className="panel__head">
-              <span className="panel__label--gold">Tactics</span>
-            </div>
+          <Panel goldTitle="Tactics">
 
             <div className="field">
               <label htmlFor="aggression">Batting instructions</label>
@@ -399,61 +385,34 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
               />
               Order batsman to hit and run
             </label>
-          </div>
+          </Panel>
 
           {/* conditions */}
-          <div className="panel">
-            <div className="panel__head">
-              <span className="panel__label--gold">Conditions</span>
-            </div>
+          <Panel goldTitle="Conditions">
             <div className="statgrid">
-              <div className="stat">
-                <div className="stat__label">Run rate</div>
-                <div className="stat__value stat__value--gold">{runRate.toFixed(2)}</div>
-              </div>
-              <div className="stat">
-                <div className="stat__label">Last 10 ov</div>
-                <div className="stat__value">
-                  {lastTenRuns(innings)}/{lastTenWickets(innings)}
-                </div>
-              </div>
+              <Stat label="Run rate" value={runRate.toFixed(2)} emphasis />
+              <Stat
+                label="Last 10 ov"
+                value={`${lastTenRuns(innings)}/${lastTenWickets(innings)}`}
+              />
               {snapshot.format === "test" ? (
-                <div className="stat">
-                  <div className="stat__label">Ball age</div>
-                  <div className="stat__value">{snapshot.clock.balls_today}</div>
-                </div>
+                <Stat label="Ball age" value={snapshot.clock.balls_today} />
               ) : (
-                <div className="stat">
-                  <div className="stat__label">Req. rate</div>
-                  <div className="stat__value">
-                    {snapshot.current_innings === 1 && snapshot.innings.length > 1
+                <Stat
+                  label="Req. rate"
+                  value={
+                    snapshot.current_innings === 1 && snapshot.innings.length > 1
                       ? requiredRate(snapshot)
-                      : "—"}
-                  </div>
-                </div>
+                      : "—"
+                  }
+                />
               )}
-              <div className="stat">
-                <div className="stat__label">Weather</div>
-                <div className="stat__value">Sunny</div>
-              </div>
+              <Stat label="Weather" value="Sunny" />
             </div>
 
-            <div className="meter" style={{ marginBottom: "0.35rem" }}>
-              <span style={{ flex: "0 0 74px" }}>Pitch</span>
-              <span className="meter__track">
-                <span
-                  className="meter__thumb"
-                  style={{ left: `${pitchWear(innings)}%` }}
-                />
-              </span>
-            </div>
-            <div className="meter">
-              <span style={{ flex: "0 0 74px" }}>Spin info</span>
-              <span className="meter__track">
-                <span className="meter__thumb" style={{ left: `${pitchWear(innings) * 1.3}%` }} />
-              </span>
-            </div>
-          </div>
+            <Meter label="Pitch" value={pitchWear(innings)} />
+            <Meter label="Spin info" value={pitchWear(innings) * 1.3} />
+          </Panel>
         </div>
       </div>
 
@@ -577,9 +536,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
           <b>{homeTeam?.name}</b> vs <b>{awayTeam?.name}</b>
           <span className="muted"> · {snapshot.format.toUpperCase()}</span>
         </span>
-        <button className="btn" onClick={onExit}>
-          Back to career
-        </button>
+        <Button onClick={onExit}>Back to career</Button>
       </div>
     </div>
   );
