@@ -51,7 +51,29 @@ impl LiveMatch {
 
 impl Career {
     /// Start a career: builds the player's competition schedule.
-    pub fn start(world: &World, team_id: u32, name: String, seed: u64) -> Result<Self, String> {
+    /// Start a career taking charge of `team_id`.
+    ///
+    /// `first_season` is the season number the career opens on (1 = the 2027
+    /// season); `reset_form` zeroes form/fitness/morale to a clean baseline,
+    /// which is the "Reset player form?" setup option.
+    pub fn start(
+        world: &World,
+        team_id: u32,
+        name: String,
+        seed: u64,
+    ) -> Result<Self, String> {
+        Self::start_with_options(world, team_id, name, seed, 1, false)
+    }
+
+    /// [`Career::start`] with the setup screen's extra options.
+    pub fn start_with_options(
+        world: &World,
+        team_id: u32,
+        name: String,
+        seed: u64,
+        first_season: u32,
+        reset_form: bool,
+    ) -> Result<Self, String> {
         let team = world
             .teams
             .iter()
@@ -109,7 +131,7 @@ impl Career {
             selections: Default::default(),
             players: Vec::new(),
             budget: None,
-            season: 1,
+            season: first_season.max(1),
             training_focus: Default::default(),
             records: Default::default(),
             seed,
@@ -117,6 +139,14 @@ impl Career {
 
         let mut state = state;
         state.players = world.players.clone();
+        if reset_form {
+            for player in state.players.iter_mut() {
+                player.form = 0;
+                player.fitness = 100;
+                player.morale = 100;
+                player.injury_days = 0;
+            }
+        }
         state.budget = None;
         Ok(Career {
             state,
@@ -610,32 +640,66 @@ impl Career {
     }
 
     /// Move to the next day with fixtures; auto-simulate passed days.
+    ///
+    /// "Fast forward" from the career action bar: skips idle days, simulates the
+    /// rounds in between (never the player's own match) and lands on the next
+    /// scheduled match day.
     pub fn advance_day(&mut self, world: &World) -> Vec<NewsItem> {
         let current = self.state.season_day;
         let next = self
             .state
             .fixtures
             .iter()
-            .filter(|f| f.day > current)
+            .filter(|f| f.day > current && f.result.is_none())
             .map(|f| f.day)
             .min()
             .unwrap_or(current + 1);
-        // Simulate everything between now and then.
         let mut news = Vec::new();
-        // Rest days restore fitness and heal injuries.
-        let rested = next.saturating_sub(current).max(1);
-        let mut map = crate::core::development::to_map(self.players.clone());
-        for _ in 0..rested {
-            crate::core::development::apply_daily_recovery(&mut map);
-            crate::core::development::heal_injuries(&mut map);
+        for _ in 0..(next - current) {
+            news.extend(self.advance_one_day(world));
         }
-        self.players = crate::core::development::to_vec(map);
+        news
+    }
 
-        for day in current..next {
-            news.extend(self.simulate_day(world, day));
-        }
+    /// Step the calendar by exactly one day and simulate that day's fixtures.
+    ///
+    /// Unlike `advance_day` this always moves, even with nothing scheduled, so
+    /// the «« button has honest behaviour.
+    pub fn advance_one_day(&mut self, world: &World) -> Vec<NewsItem> {
+        let today = self.state.season_day;
+        let news = self.simulate_day(world, today);
+        // One day of rest: fitness ticks up and injuries heal.
+        let mut map = crate::core::development::to_map(self.players.clone());
+        crate::core::development::apply_daily_recovery(&mut map);
+        crate::core::development::heal_injuries(&mut map);
+        self.players = crate::core::development::to_vec(map);
         self.sync_players();
-        self.state.season_day = next;
+        self.state.season_day = today + 1;
+        news
+    }
+
+    /// Skip to the next day the player's side has a fixture, simulating every
+    /// round in between. Used by »» and by Continue.
+    pub fn advance_to_my_next_match(&mut self, world: &World) -> Vec<NewsItem> {
+        let current = self.state.season_day;
+        let target = self
+            .state
+            .fixtures
+            .iter()
+            .find(|f| {
+                f.day > current
+                    && f.result.is_none()
+                    && (f.home_id == self.state.player_team_id
+                        || f.away_id == self.state.player_team_id)
+            })
+            .map(|f| f.day);
+        let Some(target) = target else {
+            return Vec::new();
+        };
+        let mut news = Vec::new();
+        while self.state.season_day < target {
+            news.extend(self.advance_one_day(world));
+        }
         news
     }
 

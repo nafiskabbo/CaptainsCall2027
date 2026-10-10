@@ -29,11 +29,21 @@ export const api = {
     invoke<TeamSelection>("auto_select", { teamId, format }),
 
   // ---- career ----
-  startCareer: (args: { name: string; teamId: number; seed: number }) =>
+  startCareer: (args: {
+    name: string;
+    teamId: number;
+    seed: number;
+    /** Season number the career opens on; 1 is the 2027 season. */
+    firstSeason?: number;
+    /** Wipe form/fitness/morale to a clean baseline before kick-off. */
+    resetForm?: boolean;
+  }) =>
     invoke<CareerView>("start_career", {
       name: args.name,
       teamId: args.teamId,
       seed: args.seed,
+      firstSeason: args.firstSeason ?? 1,
+      resetForm: args.resetForm ?? false,
     }),
   getCareer: () => invoke<CareerView>("get_career"),
   saveCareer: () => invoke<number>("save_career"),
@@ -41,6 +51,8 @@ export const api = {
   loadCareer: (id: number) => invoke<CareerView>("load_career", { id }),
   deleteSave: (id: number) => invoke<void>("delete_save", { id }),
   advanceDay: () => invoke<CareerView>("advance_day"),
+  advanceOneDay: () => invoke<CareerView>("advance_one_day"),
+  advanceToMyMatch: () => invoke<CareerView>("advance_to_my_match"),
   startNewSeason: () => invoke<CareerView>("start_new_season"),
   getTransferPool: () => invoke<TransferListing[]>("get_transfer_pool"),
   bidForPlayer: (playerId: number, offeredWage: number) =>

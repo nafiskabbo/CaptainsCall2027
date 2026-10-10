@@ -48,7 +48,7 @@ export default function CareerScreen({
   const [status, setStatus] = useState<string | null>(null);
   const [selectingId, setSelectingId] = useState<number | null>(null);
 
-  const { state, table, next_fixture_id, season_complete } = career;
+  const { state, table, nextFixtureId, seasonComplete } = career;
   const myTeamId = state.player_team_id;
   const comp = world.competitions.find((c) => c.id === state.competition_id);
 
@@ -110,11 +110,11 @@ export default function CareerScreen({
   return (
     <div className="stack">
       {/* next match */}
-      {next_fixture_id !== null && (
+      {nextFixtureId !== null && (
         <section className="panel">
           <h2 className="panel__title">
             Your next match
-            {state.selections[next_fixture_id] ? (
+            {state.selections[nextFixtureId] ? (
               <span className="pill pill--ok" style={{ marginLeft: "0.5rem" }}>
                 XI set
               </span>
@@ -127,14 +127,14 @@ export default function CareerScreen({
           <NextMatchCard
             world={world}
             career={career}
-            onSelect={() => setSelectingId(next_fixture_id)}
-            onPlay={() => play(next_fixture_id)}
+            onSelect={() => setSelectingId(nextFixtureId)}
+            onPlay={() => play(nextFixtureId)}
             busy={busy}
           />
         </section>
       )}
 
-      {season_complete && (
+      {seasonComplete && (
         <section className="panel">
           <h2 className="panel__title">Season complete</h2>
           <p>
@@ -427,7 +427,7 @@ function NextMatchCard({
   onPlay: () => void;
   busy: boolean;
 }) {
-  const fixture = career.state.fixtures.find((f) => f.id === career.next_fixture_id);
+  const fixture = career.state.fixtures.find((f) => f.id === career.nextFixtureId);
   if (!fixture) return <p className="muted">No fixture left to play.</p>;
 
   const opponent = fixture.home_id === career.state.player_team_id ? fixture.away_id : fixture.home_id;

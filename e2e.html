@@ -1,0 +1,22 @@
+<!--
+  E2E harness entry point. NOT used by the packaged app (index.html is).
+
+  Loads the same `/src/main.tsx` as index.html, but first installs a shim that
+  routes every `window.__TAURI_INTERNALS__.invoke(cmd, args)` to the local Rust
+  harness (`cargo run --example e2e`). The engine, CareerView shapes and
+  validation are therefore identical to the packaged app — only the transport
+  differs — which makes the real UI reproducible and observable from a browser.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Captain's Call 2027 — e2e harness</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/mock-e2e.ts"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

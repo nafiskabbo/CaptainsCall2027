@@ -43,6 +43,8 @@ pub fn run() {
             commands::load_career,
             commands::delete_save,
             commands::advance_day,
+            commands::advance_one_day,
+            commands::advance_to_my_match,
             commands::start_new_season,
             commands::get_transfer_pool,
             commands::bid_for_player,

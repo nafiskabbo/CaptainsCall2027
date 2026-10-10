@@ -24,14 +24,13 @@ impl AppState {
         }
     }
 
-    /// Opens the saves database under the app data dir (reopened per call;
-    /// SQLite handles concurrent readers fine and this keeps lifetimes simple).
-    fn saves(&self, app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
-        let dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("app data dir unavailable: {e}"))?;
-        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    /// Opens the saves database under `dir` (reopened per call; SQLite handles
+    /// concurrent readers fine and this keeps lifetimes simple).
+    ///
+    /// Takes a directory rather than an `AppHandle` so the same store can be
+    /// pointed at a temp dir by the e2e harness and integration tests.
+    pub fn saves_in(&self, dir: &std::path::Path) -> Result<rusqlite::Connection, String> {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         let conn = rusqlite::Connection::open(dir.join("saves.db"))
             .map_err(|e| format!("cannot open saves db: {e}"))?;
         crate::db::open_migrations(&conn).map_err(|e| e.to_string())?;
@@ -159,8 +158,17 @@ pub fn start_career(
     name: String,
     team_id: u32,
     seed: u64,
+    first_season: Option<u32>,
+    reset_form: Option<bool>,
 ) -> Result<CareerView, String> {
-    let career = Career::start(&state.world, team_id, name, seed)?;
+    let career = Career::start_with_options(
+        &state.world,
+        team_id,
+        name,
+        seed,
+        first_season.unwrap_or(1),
+        reset_form.unwrap_or(false),
+    )?;
     let view = build_view(&career, &state.world);
     *state.career.lock().map_err(|e| e.to_string())? = Some(career);
     Ok(view)
@@ -176,7 +184,11 @@ pub fn get_career(state: SharedState<'_>) -> Result<CareerView, String> {
 #[tauri::command]
 pub fn save_career(app: tauri::AppHandle, state: SharedState<'_>) -> Result<i64, String> {
     let _ = &state;
-    let conn = state.saves(&app)?;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let conn = state.saves_in(&dir)?;
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
     db::save(&conn, &career.state).map_err(|e| e.to_string())
@@ -187,7 +199,11 @@ pub fn list_saves(
     app: tauri::AppHandle,
     state: SharedState<'_>,
 ) -> Result<Vec<SaveSummary>, String> {
-    let conn = state.saves(&app)?;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let conn = state.saves_in(&dir)?;
     db::list(&conn).map_err(|e| e.to_string())
 }
 
@@ -197,7 +213,11 @@ pub fn load_career(
     state: SharedState<'_>,
     id: i64,
 ) -> Result<CareerView, String> {
-    let conn = state.saves(&app)?;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let conn = state.saves_in(&dir)?;
     // Warn (but still load) when the save came from a different dbVersion.
     let (loaded, matches_db) =
         db::load_checked(&conn, id, crate::world::DB_VERSION).map_err(|e| e.to_string())?;
@@ -234,7 +254,11 @@ pub fn load_career(
 
 #[tauri::command]
 pub fn delete_save(app: tauri::AppHandle, state: SharedState<'_>, id: i64) -> Result<(), String> {
-    let conn = state.saves(&app)?;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let conn = state.saves_in(&dir)?;
     db::delete(&conn, id).map_err(|e| e.to_string())
 }
 
@@ -399,6 +423,25 @@ pub fn advance_day(state: SharedState<'_>) -> Result<CareerView, String> {
     Ok(build_view(career, &state.world))
 }
 
+/// Step the calendar by a single day (««): always moves, simulates that day.
+#[tauri::command]
+pub fn advance_one_day(state: SharedState<'_>) -> Result<CareerView, String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_mut().ok_or("no career in progress")?;
+    career.advance_one_day(&state.world);
+    Ok(build_view(career, &state.world))
+}
+
+/// Skip straight to the player's next fixture (»»), simulating the rounds
+/// in between. Returns the view unchanged when the season has none left.
+#[tauri::command]
+pub fn advance_to_my_match(state: SharedState<'_>) -> Result<CareerView, String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_mut().ok_or("no career in progress")?;
+    career.advance_to_my_next_match(&state.world);
+    Ok(build_view(career, &state.world))
+}
+
 // ---------------- live match commands ----------------
 
 /// Read the XI the player has saved for a fixture (or the auto-pick).
@@ -481,11 +524,11 @@ pub fn export_scorecard(app: tauri::AppHandle, state: SharedState<'_>) -> Result
 
     let html = crate::commands::almanack::scorecard_html(&snapshot, &state.world);
 
-    let dir = app
+    let base = app
         .path()
         .app_data_dir()
-        .map_err(|e| format!("app data dir unavailable: {e}"))?
-        .join("scorecards");
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let dir = base.join("scorecards");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(format!("scorecard-{}.html", snapshot.match_id));
     std::fs::write(&path, html).map_err(|e| e.to_string())?;
@@ -548,30 +591,29 @@ impl From<crate::core::updater::UpdateStatus> for UpdateStatusView {
 }
 
 /// Update settings live next to the saves so they persist.
-fn settings_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("app data dir unavailable: {e}"))?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join("update-settings.json"))
+fn settings_path_in(dir: &std::path::Path) -> std::path::PathBuf {
+    dir.join("update-settings.json")
 }
 
-fn load_settings(app: &tauri::AppHandle) -> crate::core::updater::UpdateSettings {
-    let Ok(path) = settings_path(app) else {
-        return Default::default();
-    };
-    std::fs::read_to_string(path)
+/// Settings file location for an explicit directory (harness/tests).
+pub fn settings_path_for(dir: &std::path::Path) -> std::path::PathBuf {
+    settings_path_in(dir)
+}
+
+/// Read update settings from an explicit directory.
+pub fn load_settings_in(dir: &std::path::Path) -> crate::core::updater::UpdateSettings {
+    std::fs::read_to_string(settings_path_in(dir))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default()
 }
 
-fn save_settings(
-    app: &tauri::AppHandle,
+/// Write update settings to an explicit directory.
+pub fn save_settings_in(
+    dir: &std::path::Path,
     settings: &crate::core::updater::UpdateSettings,
 ) -> Result<(), String> {
-    let path = settings_path(app)?;
+    let path = settings_path_in(dir);
     let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     std::fs::write(path, json).map_err(|e| e.to_string())
 }
@@ -583,7 +625,12 @@ pub fn set_update_settings(
     enabled: bool,
     channel: Option<String>,
 ) -> Result<UpdateStateView, String> {
-    let mut settings = load_settings(&app);
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut settings = load_settings_in(&dir);
     settings.check_for_updates = enabled;
     if let Some(channel) = channel {
         settings.channel = match channel.as_str() {
@@ -592,7 +639,7 @@ pub fn set_update_settings(
             _ => crate::core::updater::UpdateChannel::Stable,
         };
     }
-    save_settings(&app, &settings)?;
+    save_settings_in(&dir, &settings)?;
     Ok(UpdateStateView {
         installed: crate::world::DB_VERSION.to_string(),
         settings,
@@ -605,7 +652,11 @@ pub fn set_update_settings(
 /// Read the current state of the update channel.
 #[tauri::command]
 pub fn get_update_state(app: tauri::AppHandle) -> Result<UpdateStateView, String> {
-    let settings = load_settings(&app);
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let settings = load_settings_in(&dir);
     Ok(UpdateStateView {
         installed: crate::world::DB_VERSION.to_string(),
         settings,
@@ -625,7 +676,11 @@ pub fn check_local_update(
     app: tauri::AppHandle,
     manifest_path: String,
 ) -> Result<UpdateStateView, String> {
-    let settings = load_settings(&app);
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let settings = load_settings_in(&dir);
     let json = std::fs::read_to_string(&manifest_path)
         .map_err(|e| format!("could not read manifest: {e}"))?;
     let manifest: crate::core::updater::DbManifest =
@@ -647,7 +702,8 @@ pub fn check_local_update(
 
 // ---------------- helpers ----------------
 
-fn build_view(career: &Career, world: &World) -> CareerView {
+/// Career summary the UI renders on its home screen.
+pub fn build_view(career: &Career, world: &World) -> CareerView {
     let international = world
         .teams
         .iter()

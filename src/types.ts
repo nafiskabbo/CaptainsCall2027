@@ -269,6 +269,37 @@ export interface TableRow {
   net_run_rate_x100: number;
 }
 
+/** A player's career aggregates (`core::records::PlayerRecord`). */
+export interface PlayerRecord {
+  player_id: number;
+  name: string;
+  matches: number;
+  runs: number;
+  balls_faced: number;
+  wickets: number;
+  balls_bowled: number;
+  runs_conceded: number;
+  fifties: number;
+  hundreds: number;
+  five_wicket_hauls: number;
+  ducks: number;
+  outs: number;
+}
+
+/** A team's career aggregates (`core::records::TeamRecord`). */
+export interface TeamRecord {
+  team_id: number;
+  name: string;
+  matches: number;
+  wins: number;
+  losses: number;
+  ties: number;
+}
+
+/**
+ * The serialized career. This is the *raw* Rust `CareerState`, so its keys are
+ * snake_case — unlike `CareerView` itself, which is camelCase.
+ */
 export interface CareerState {
   id: number | null;
   name: string;
@@ -282,17 +313,27 @@ export interface CareerState {
   news: NewsItem[];
   selections: Record<number, TeamSelection>;
   players: Player[];
+  /** Raw career records: per-player and per-team maps. */
+  records: { players: Record<number, PlayerRecord>; teams: Record<number, TeamRecord> };
   budget: number | null;
   season: number;
-  trainingFocus: TrainingFocus;
+  /** Enum serialized as a lowercase snake_case string. */
+  training_focus: TrainingFocus;
   seed: number;
 }
 
+/**
+ * Career view as the Rust side serializes it. NOTE the naming split:
+ * `CareerView` is `#[serde(rename_all = "camelCase")]` so its own fields are
+ * camelCase, while `state` is the raw `CareerState` struct and stays
+ * snake_case. Getting this wrong silently yields `undefined` (which is how the
+ * Play button once disappeared), so keep the two conventions apart carefully.
+ */
 export interface CareerView {
   state: CareerState;
   table: TableRow[];
-  next_fixture_id: number | null;
-  season_complete: boolean;
+  nextFixtureId: number | null;
+  seasonComplete: boolean;
   international: boolean;
   records: CareerRecordRow[];
   dbVersionWarning: string | null;

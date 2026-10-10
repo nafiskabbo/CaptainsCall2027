@@ -551,3 +551,11 @@ select::-ms-expand {
 .panel--flush > .panel__body {
   padding: 0.5rem 0.55rem 0.7rem;
 }
+
+/* ---- highlight for the match tactics column when Options is active ---- */
+.stack--active {
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 1px rgba(242, 214, 122, 0.35),
+    0 0 14px rgba(242, 214, 122, 0.1);
+}

@@ -23,8 +23,15 @@ const FOCUSES: { value: TrainingFocus; label: string; blurb: string }[] = [
 
 export default function TrainingScreen({ career, onSaved }: Props) {
   const [squad, setSquad] = useState<Player[]>([]);
-  const [focus, setFocus] = useState<TrainingFocus>("none");
+  // Initialise from the career's saved focus rather than always showing
+  // "Balanced", which hid the manager's actual choice on revisit.
+  const [focus, setFocus] = useState<TrainingFocus>(career.state.training_focus ?? "none");
   const [busy, setBusy] = useState(false);
+
+  // Re-sync when a different career (or a saved state) is loaded.
+  useEffect(() => {
+    setFocus(career.state.training_focus ?? "none");
+  }, [career.state.training_focus, career.state.id]);
 
   useEffect(() => {
     api

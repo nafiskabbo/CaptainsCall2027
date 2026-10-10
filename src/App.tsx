@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./tools/api";
 import type { AppInfo, CareerView, MatchSnapshot, World } from "./types";
 import AppShell, { type SidebarItem } from "./components/AppShell";
@@ -11,6 +11,9 @@ import { seasonClock, seasonDate } from "./lib/date";
 
 type Screen = "setup" | "career" | "match" | "summary" | "offseason";
 
+/** Autoplay cadence: one ball per tick, matching a watchable pace. */
+const AUTOPLAY_TICK_MS = 260;
+
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [world, setWorld] = useState<World | null>(null);
@@ -21,6 +24,13 @@ export default function App() {
   /** Sidebar-driven tab + squad search, shared with CareerScreen. */
   const [careerTab, setCareerTab] = useState("today");
   const [query, setQuery] = useState("");
+  /** Action-bar confirmation ("Career saved"), auto-clears. */
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  /** Match-screen sidebar selection, mirroring the career tab switch. */
+  const [matchTab, setMatchTab] = useState<"batting" | "options">("options");
+  /** Autoplay: advances one ball per tick while the match is running. */
+  const [autoplay, setAutoplay] = useState(false);
+  const autoplayRef = useRef<number | null>(null);
 
   useEffect(() => {
     Promise.all([api.getAppInfo(), api.getWorld()])
@@ -30,6 +40,62 @@ export default function App() {
       })
       .catch((e) => setError(String(e)));
   }, []);
+
+  const startAutoplay = useCallback(() => {
+    setAutoplay(true);
+  }, []);
+
+  const stopAutoplay = useCallback(() => {
+    setAutoplay(false);
+  }, []);
+
+  /** Leave a match, refreshing the career so results and news are current. */
+  const exitMatch = useCallback(
+    (to: Screen) => {
+      stopAutoplay();
+      api
+        .getCareer()
+        .then((next) => {
+          setCareer(next);
+          setScreen(to);
+        })
+        .catch(() => setScreen(to));
+    },
+    [stopAutoplay],
+  );
+
+  /** Confirmation for the summary screen's Save (no action bar message there). */
+  const showSaveMessageFromSummary = useCallback((message: string) => {
+    setSaveMessage(message);
+    window.setTimeout(() => setSaveMessage(null), 4000);
+  }, []);
+
+  // Autoplay loop: one ball per tick, stops itself when the match ends.
+  useEffect(() => {
+    if (!autoplay) {
+      if (autoplayRef.current !== null) {
+        window.clearInterval(autoplayRef.current);
+        autoplayRef.current = null;
+      }
+      return;
+    }
+    autoplayRef.current = window.setInterval(() => {
+      setSnapshot((current) => {
+        if (!current || current.phase === "complete") {
+          stopAutoplay();
+          return current;
+        }
+        void api.simMatch(1).then(setSnapshot);
+        return current;
+      });
+    }, AUTOPLAY_TICK_MS);
+    return () => {
+      if (autoplayRef.current !== null) {
+        window.clearInterval(autoplayRef.current);
+        autoplayRef.current = null;
+      }
+    };
+  }, [autoplay, stopAutoplay, setSnapshot]);
 
   if (error || !info || !world) {
     return (
@@ -48,12 +114,64 @@ export default function App() {
     );
   }
 
-  const startCareer = async (teamId: number, name: string, seed: number) => {
-    const view = await api.startCareer({ teamId, name, seed });
+  const startCareer = async (
+    teamId: number,
+    name: string,
+    seed: number,
+    firstSeason = 1,
+    resetForm = false,
+  ) => {
+    const view = await api.startCareer({ teamId, name, seed, firstSeason, resetForm });
     setCareer(view);
     setCareerTab("today");
     setQuery("");
+    setSaveMessage(null);
     setScreen("career");
+  };
+
+  /** Transient confirmation shown in the career action bar. */
+  const showSaveMessage = (message: string) => {
+    setSaveMessage(message);
+    window.setTimeout(() => setSaveMessage(null), 4000);
+  };
+
+  const quitToMenu = () => {
+    setCareer(null);
+    setScreen("setup");
+  };
+
+  /**
+   * Continue: jump to the player's next fixture and open it if it is on today
+   * or already past due. This is the button a player presses to keep playing,
+   * so it must never dead-end.
+   */
+  const continueCareer = async () => {
+    if (!career) return;
+    if (career.seasonComplete) {
+      setScreen("summary");
+      return;
+    }
+    try {
+      const next = career.state.fixtures.find((f) => f.id === career.nextFixtureId);
+      if (next && next.day <= career.state.season_day) {
+        setSnapshot(await api.startFixture(next.id));
+        setScreen("match");
+        return;
+      }
+      const advanced = await api.advanceToMyMatch();
+      setCareer(advanced);
+      const nowPlayable = advanced.state.fixtures.find(
+        (f) => f.id === advanced.nextFixtureId,
+      );
+      if (nowPlayable && nowPlayable.day <= advanced.state.season_day) {
+        setSnapshot(await api.startFixture(nowPlayable.id));
+        setScreen("match");
+        return;
+      }
+      showSaveMessage("No match left to play — season complete.");
+    } catch (e) {
+      showSaveMessage(`Cannot continue: ${e}`);
+    }
   };
 
   if (screen === "setup") {
@@ -90,8 +208,9 @@ export default function App() {
 
   if (screen === "career" && career) {
     const nation = world.nations.find((n) => n.id === career.state.nation_id);
+    const activeTab = careerTab === "fixtures" ? "today" : careerTab;
     const items: SidebarItem[] = [
-      { id: "fixtures", label: "Fixtures", icon: "list", active: true },
+      { id: "fixtures", label: "Fixtures", icon: "list", active: activeTab === "today", onClick: () => setCareerTab("today") },
       { id: "table", label: "Table", icon: "chart", onClick: () => setCareerTab("table") },
       { id: "records", label: "Records", icon: "chart", onClick: () => setCareerTab("records") },
       { id: "squad", label: "Squad", icon: "team", onClick: () => setCareerTab("squad") },
@@ -117,41 +236,63 @@ export default function App() {
         }
         actionBar={
           <>
+            {/* «« steps a single day, Fast Forward skips to the next match day,
+                »» skips to the player's own next match. */}
             <button
               className="btn"
-              onClick={() => api.advanceDay().then(setCareer)}
-              disabled={career.season_complete}
+              title="Advance one day"
+              aria-label="Advance one day"
+              onClick={() => api.advanceOneDay().then(setCareer)}
+              disabled={career.seasonComplete}
             >
               ««
             </button>
             <button
               className="btn"
+              title="Fast forward to the next match day"
               onClick={() => api.advanceDay().then(setCareer)}
-              disabled={career.season_complete}
+              disabled={career.seasonComplete}
             >
               Fast Forward
             </button>
             <button
               className="btn"
-              onClick={() => api.advanceDay().then(setCareer)}
-              disabled={career.season_complete}
+              title="Skip to my next match"
+              aria-label="Skip to my next match"
+              onClick={() => api.advanceToMyMatch().then(setCareer)}
+              disabled={career.seasonComplete}
             >
               »»
             </button>
             <span className="actionbar__message">
-              {career.season_complete
-                ? "Season complete"
-                : `${world.competitions.find((c) => c.id === career.state.competition_id)?.name ?? "Competition"} · next match day ${
-                    career.state.fixtures.find((f) => f.id === career.next_fixture_id)?.day ?? "—"
-                  }`}
+              {saveMessage
+                ? saveMessage
+                : career.seasonComplete
+                  ? "Season complete"
+                  : `${world.competitions.find((c) => c.id === career.state.competition_id)?.name ?? "Competition"} · next match day ${
+                      career.state.fixtures.find((f) => f.id === career.nextFixtureId)?.day ?? "—"
+                    }`}
             </span>
-            <button className="btn" onClick={() => api.saveCareer().then(() => undefined)}>
+            <button
+              className="btn"
+              title="Save career"
+              onClick={() =>
+                api
+                  .saveCareer()
+                  .then(() => showSaveMessage("Career saved"))
+                  .catch((e) => showSaveMessage(`Could not save: ${e}`))
+              }
+            >
               Save
             </button>
-            <button className="btn btn--ghost" onClick={() => { setCareer(null); setScreen("setup"); }}>
+            <button className="btn btn--ghost" onClick={quitToMenu}>
               Main Menu
             </button>
-            <button className="btn btn--continue">
+            <button
+              className="btn btn--continue"
+              title="Play my next match"
+              onClick={continueCareer}
+            >
               Continue
               <span className="btn--continue__arrow">➜</span>
             </button>
@@ -193,7 +334,12 @@ export default function App() {
           .toUpperCase()}
         items={[
           { id: "news", label: "Season review", icon: "news", active: true },
-          { id: "records", label: "Records", icon: "chart" },
+          {
+            id: "records",
+            label: "Records",
+            icon: "chart",
+            onClick: () => document.getElementById("records")?.scrollIntoView({ behavior: "smooth" }),
+          },
         ]}
         actionBar={
           <>
@@ -201,14 +347,14 @@ export default function App() {
               Save
             </button>
             <span className="actionbar__message">
-              {career.season_complete
+              {career.seasonComplete
                 ? "Every fixture played — roll into the off-season when you are ready."
                 : "Season still in progress."}
             </span>
             <button
               className="btn btn--continue"
               onClick={() => setScreen("offseason")}
-              disabled={!career.season_complete}
+              disabled={!career.seasonComplete}
             >
               Off-season
               <span className="btn--continue__arrow">➜</span>
@@ -220,7 +366,7 @@ export default function App() {
           world={world}
           career={career}
           onOffSeason={() => setScreen("offseason")}
-          onSave={() => api.saveCareer().then(() => undefined)}
+          onSave={() => showSaveMessageFromSummary("Career saved")}
         />
       </AppShell>
     );
@@ -238,11 +384,25 @@ export default function App() {
           .toUpperCase()}
         items={[
           { id: "news", label: "Off-season", icon: "news", active: true },
-          { id: "team", label: "Squad", icon: "team" },
+          {
+            id: "team",
+            label: "Squad",
+            icon: "team",
+            onClick: () => document.getElementById("offseason-squad")?.scrollIntoView({ behavior: "smooth" }),
+          },
         ]}
         actionBar={
           <>
-            <button className="btn" onClick={() => api.saveCareer().then(() => undefined)}>
+            <button
+              className="btn"
+              title="Save career"
+              onClick={() =>
+                api
+                  .saveCareer()
+                  .then(() => showSaveMessage("Career saved"))
+                  .catch((e) => showSaveMessage(`Could not save: ${e}`))
+              }
+            >
               Save
             </button>
             <span className="actionbar__message">
@@ -302,19 +462,55 @@ export default function App() {
         homeFlag={(homeNation?.short_name ?? "HM").slice(0, 3).toUpperCase()}
         awayFlag={(awayNation?.short_name ?? "AW").slice(0, 3).toUpperCase()}
         items={[
-          { id: "news", label: "Match", icon: "news", active: true },
-          { id: "score", label: "Scorecard", icon: "team" },
-          { id: "opts", label: "Options", icon: "options" },
+          {
+            id: "news",
+            label: "Match",
+            icon: "news",
+            active: true,
+          },
+          {
+            id: "score",
+            label: "Scorecard",
+            icon: "team",
+            onClick: () =>
+              document.getElementById("match-scorecard")?.scrollIntoView({ behavior: "smooth" }),
+          },
+          {
+            id: "opts",
+            label: "Options",
+            icon: "options",
+            active: matchTab === "options",
+            onClick: () => {
+              setMatchTab("options");
+              document.getElementById("match-tactics")?.scrollIntoView({ behavior: "smooth" });
+            },
+          },
         ]}
         actionBar={
           <>
-            <button className="btn">Main Screen</button>
-            <button className="btn btn--ghost">Options</button>
             <button
               className="btn"
-              onClick={() => advanceQuick(snapshot, setSnapshot)}
+              title="Back to the career screen"
+              onClick={() => exitMatch("career")}
             >
-              Autoplay
+              Main Screen
+            </button>
+            <button
+              className="btn btn--ghost"
+              title="Tactics and match conditions"
+              onClick={() => {
+                setMatchTab("options");
+                document.getElementById("match-tactics")?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              Options
+            </button>
+            <button
+              className="btn"
+              title={autoplay ? "Stop autoplay" : "Sim the match to the finish"}
+              onClick={() => (autoplay ? stopAutoplay() : startAutoplay())}
+            >
+              {autoplay ? "Pause" : "Autoplay"}
             </button>
             <span className="actionbar__message">
               {snapshot.result?.summary ??
@@ -326,12 +522,13 @@ export default function App() {
             </span>
             <button
               className="btn btn--continue"
-              onClick={() => {
-                api.getCareer().then((next) => {
-                  setCareer(next);
-                  setScreen(next.season_complete ? "summary" : "career");
-                });
-              }}
+              title="Finish and return to the career screen"
+              onClick={() =>
+                api
+                  .getCareer()
+                  .then((next) => exitMatch(next.seasonComplete ? "summary" : "career"))
+                  .catch(() => exitMatch("career"))
+              }
             >
               Continue
               <span className="btn--continue__arrow">➜</span>
@@ -343,10 +540,8 @@ export default function App() {
           world={world}
           snapshot={snapshot}
           onSnapshot={setSnapshot}
-          onExit={() => {
-            api.getCareer().then(setCareer);
-            setScreen("career");
-          }}
+          onExit={() => exitMatch("career")}
+          optionsOpen={matchTab === "options"}
         />
       </AppShell>
     );
@@ -363,12 +558,4 @@ export default function App() {
 function battingTeamName(world: World, snapshot: MatchSnapshot): string {
   const inn = snapshot.innings[snapshot.current_innings];
   return world.teams.find((t) => t.id === inn?.batting_team_id)?.name ?? "";
-}
-
-function advanceQuick(
-  snapshot: MatchSnapshot,
-  setSnapshot: (s: MatchSnapshot) => void,
-) {
-  if (snapshot.phase === "complete") return;
-  api.simMatch(100000).then(setSnapshot).catch(() => undefined);
 }

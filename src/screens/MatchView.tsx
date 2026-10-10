@@ -75,8 +75,16 @@ export default function MatchView({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
+    // ResizeObserver is not universal (older WebViews, jsdom-based tests), and
+    // without it the whole match screen would unmount. Fall back to the window
+    // resize event, which is enough to keep the canvas sized correctly.
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver === "function") {
+      observer = new ResizeObserver(resize);
+      observer.observe(canvas);
+    } else {
+      window.addEventListener("resize", resize);
+    }
 
     const draw = () => {
       t.current += 1 / 60;
@@ -371,7 +379,11 @@ export default function MatchView({
     raf.current = requestAnimationFrame(draw);
     return () => {
       cancelAnimationFrame(raf.current);
-      observer.disconnect();
+      if (observer) {
+        observer.disconnect();
+      } else {
+        window.removeEventListener("resize", resize);
+      }
     };
   }, [fielders, fielderNames, batterNames, dayNight, innings, snapshot?.striker_id, snapshot?.non_striker_id]);
 

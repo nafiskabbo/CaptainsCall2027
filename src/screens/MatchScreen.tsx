@@ -19,6 +19,8 @@ interface Props {
   snapshot: MatchSnapshot;
   onSnapshot: (s: MatchSnapshot) => void;
   onExit: () => void;
+  /** Raised while the shell's Options sidebar item is the active one. */
+  optionsOpen?: boolean;
 }
 
 const FIELD_PRESETS: { value: FieldPreset; label: string }[] = [
@@ -72,7 +74,7 @@ function roleShort(role: string): string {
   return role === "wicketkeeper" ? "WK" : role === "pace_bowler" ? "RF" : role === "spin_bowler" ? "SP" : role === "allrounder" ? "AR" : "BAT";
 }
 
-export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Props) {
+export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optionsOpen }: Props) {
   const [tab, setTab] = useState<"batting" | "bowling" | "overs" | "chart">("batting");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -313,7 +315,12 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
         </div>
 
         {/* ---- tactics + scorecards ---- */}
-        <div className="stack">
+        // `optionsOpen` marks this column when the shell's Options sidebar item
+        // is active, so the sidebar selection is visible on the page.
+        <div
+          className={`stack ${optionsOpen ? "stack--active" : ""}`}
+          id="match-tactics"
+        >
           <Panel goldTitle="Tactics">
 
             <div className="field">
@@ -337,7 +344,10 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
                 id="preset"
                 value={input.field_preset}
                 onChange={(e) => {
-                  input.field_preset = e.target.value as FieldPreset;
+                  // Must go through state: assigning to `input` mutates the
+                  // React state object, which never re-renders and leaves the
+                  // field preset stuck on whatever the engine last saw.
+                  patchOrders({ field_preset: e.target.value as FieldPreset });
                 }}
               >
                 {FIELD_PRESETS.map((p) => (
@@ -417,7 +427,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
       </div>
 
       {/* scorecards */}
-      <div className="panel">
+      <div className="panel" id="match-scorecard">
         <nav className="tabs">
           {(
             [

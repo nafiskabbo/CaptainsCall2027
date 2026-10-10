@@ -5,10 +5,19 @@ import UpdatePanel from "./UpdatePanel";
 
 interface Props {
   world: World;
-  onStartCareer: (teamId: number, name: string, seed: number) => void | Promise<void>;
+  /** `firstSeason` is 1 for the 2027 season; `resetForm` wipes roster form. */
+  onStartCareer: (
+    teamId: number,
+    name: string,
+    seed: number,
+    firstSeason: number,
+    resetForm: boolean,
+  ) => void | Promise<void>;
 }
 
 const SEASONS = ["2027", "2028", "2029"];
+/** Season year -> career season number (the engine stores 1-based seasons). */
+const SEASON_INDEX: Record<string, number> = { "2027": 1, "2028": 2, "2029": 3 };
 
 function teamLabel(world: World, team: Team): string {
   const nation = world.nations.find((n) => n.id === team.nation_id);
@@ -23,7 +32,7 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
   const [season, setSeason] = useState<string>("2027");
   const [seed, setSeed] = useState<number>(() => 20270101);
   const [resetForm, setResetForm] = useState(false);
-  const [selectBoth, setSelectBoth] = useState(true);
+
   const [squad, setSquad] = useState<Player[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +65,13 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await onStartCareer(teamId, careerName.trim() || "My Career", seed);
+      await onStartCareer(
+        teamId,
+        careerName.trim() || "My Career",
+        seed,
+        SEASON_INDEX[season] ?? 1,
+        resetForm,
+      );
     } catch (e) {
       setError(String(e));
     } finally {
@@ -99,19 +114,20 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
                 </optgroup>
               ))}
             </select>
-            <label className="radio">
-              <input type="checkbox" checked={selectBoth} onChange={(e) => setSelectBoth(e.target.checked)} />
-              Select both team lineups?
-            </label>
           </div>
         </div>
 
         <div className="setuprow">
           <span className="setuprow__label">Starting season</span>
           <div className="setuprow__control">
-            <select value={season} onChange={(e) => setSeason(e.target.value)} aria-label="Season">
+            <select
+              value={season}
+              onChange={(e) => setSeason(e.target.value)}
+              aria-label="Season"
+              title="Which season this career opens on"
+            >
               {SEASONS.map((s) => (
-                <option key={s} value={s}>
+                <option key={s} value={SEASON_INDEX[s]}>
                   {s} season
                 </option>
               ))}
@@ -128,7 +144,7 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
               onChange={(e) => setSeed(Number(e.target.value))}
               aria-label="Database seed"
             />
-            <label className="radio">
+            <label className="radio" title="Clears form, fatigue and injuries across the roster">
               <input type="checkbox" checked={resetForm} onChange={(e) => setResetForm(e.target.checked)} />
               Reset player form?
             </label>
