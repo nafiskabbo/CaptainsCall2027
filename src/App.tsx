@@ -137,8 +137,12 @@ export default function App() {
   };
 
   const quitToMenu = () => {
+    // Clear the engine's career slot too, not just React state: while a career
+    // object is live the engine blocks changing the database and starting a new
+    // career, so a UI-only reset leaves the app wedged.
     setCareer(null);
     setScreen("setup");
+    api.quitToMenu().catch(() => undefined);
   };
 
   /**
@@ -193,7 +197,14 @@ export default function App() {
         </header>
         <div className="content">
           <div className="content__inner">
-            <WorldScreen world={world} onStartCareer={startCareer} />
+            <WorldScreen
+              world={world}
+              onStartCareer={startCareer}
+              onWorldChanged={(next) => {
+                setWorld(next);
+                setCareer(null);
+              }}
+            />
           </div>
         </div>
         <div className="actionbar">
@@ -426,10 +437,7 @@ export default function App() {
           world={world}
           career={career}
           onCareer={setCareer}
-          onExit={() => {
-            setCareer(null);
-            setScreen("setup");
-          }}
+          onExit={quitToMenu}
           onNewSeason={async () => {
             const next = await api.startNewSeason();
             setCareer(next);

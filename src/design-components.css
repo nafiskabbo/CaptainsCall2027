@@ -264,6 +264,23 @@ table.data tbody tr:hover {
   font-size: 0.84rem;
 }
 
+/* Inline advisory note, e.g. the third-party-content warning on a DB pack. */
+.note {
+  margin: 0.35rem 0 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border-left: 3px solid var(--blue-400);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--ink-dim);
+  font-size: 0.79rem;
+  line-height: 1.4;
+}
+
+.note--warn {
+  border-left-color: var(--gold);
+  color: #f0e2b4;
+}
+
 .row--mine {
   background: rgba(46, 107, 184, 0.24) !important;
   box-shadow: inset 3px 0 0 var(--blue-400);

@@ -71,8 +71,13 @@ fn state() -> &'static AppState {
     STATE.get_or_init(|| AppState::new(load_world()))
 }
 
-fn world() -> &'static captains_call_2027_lib::World {
-    &state().world
+/// The currently loaded database.
+///
+/// Cloned rather than borrowed: the app state holds the world behind an
+/// `RwLock` so the pack picker can swap it, and the harness mirrors the app's
+/// command surface exactly. The clone keeps every call site below unchanged.
+fn world() -> captains_call_2027_lib::World {
+    state().world()
 }
 
 /// Career slot, guarded by the same mutex the app uses.
@@ -250,6 +255,44 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
         })),
         "get_world" => Ok(serde_json::json!(world())),
         "get_db_version" => Ok(serde_json::json!(DB_VERSION.to_string())),
+        "list_db_packs" => Ok(serde_json::json!(
+            captains_call_2027_lib::commands::list_db_packs()
+        )),
+        "quit_to_menu" => {
+            *state().career.lock().map_err(|e| e.to_string())? = None;
+            Ok(serde_json::json!(null))
+        }
+        "load_db_pack" => {
+            let key = args
+                .get("key")
+                .and_then(|v| v.as_str())
+                .ok_or("load_db_pack: key is required")?
+                .to_string();
+            // Mirror the real command: refuse mid-career, then swap the world.
+            {
+                let guard = state().career.lock().map_err(|e| e.to_string())?;
+                if let Some(career) = guard.as_ref() {
+                    if career.state.season_day > 1 || !career.state.fixtures.is_empty() {
+                        return Err(
+                            "finish or delete the current career before changing database".into(),
+                        );
+                    }
+                }
+            }
+            let next = if key == "default" {
+                load_world()
+            } else {
+                let id = captains_call_2027_lib::world::pack_from_key(&key)
+                    .ok_or_else(|| format!("unknown database pack: {key}"))?;
+                captains_call_2027_lib::world::load_pack(id)
+            };
+            if next.teams.is_empty() {
+                return Err(format!("database pack '{key}' could not be loaded"));
+            }
+            *state().career.lock().map_err(|e| e.to_string())? = None;
+            state().set_world(next.clone())?;
+            Ok(serde_json::json!(next))
+        }
         "get_squad" => {
             let team_id = arg_u32(args, "teamId")?;
             Ok(serde_json::json!(squad_for(team_id)))
@@ -257,7 +300,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
         "auto_select" => {
             let team_id = arg_u32(args, "teamId")?;
             let format = arg_json(args, "format")?;
-            let team = world()
+            let team = &world()
                 .teams
                 .iter()
                 .find(|t| t.id == team_id)
@@ -265,7 +308,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 .ok_or_else(|| format!("team {team_id} not found"))?;
             Ok(serde_json::json!(
                 captains_call_2027_lib::match_::TeamSelection::auto_for(
-                    &team,
+                    team,
                     &world().players,
                     format
                 )
@@ -282,16 +325,22 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 .get("resetForm")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let career =
-                Career::start_with_options(world(), team_id, name, seed, first_season, reset_form)?;
-            let view = captains_call_2027_lib::commands::build_view(&career, world());
+            let career = Career::start_with_options(
+                &world(),
+                team_id,
+                name,
+                seed,
+                first_season,
+                reset_form,
+            )?;
+            let view = captains_call_2027_lib::commands::build_view(&career, &world());
             *careers().lock().map_err(|e| e.to_string())? = Some(career);
             Ok(serde_json::json!(view))
         }
         "get_career" => {
             let career = career()?;
             Ok(serde_json::json!(
-                captains_call_2027_lib::commands::build_view(&career, world())
+                captains_call_2027_lib::commands::build_view(&career, &world())
             ))
         }
         "save_career" => {
@@ -324,7 +373,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 ))
             };
             let players = if loaded.players.is_empty() {
-                world().players.clone()
+                world().players
             } else {
                 loaded.players.clone()
             };
@@ -336,7 +385,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 last_snapshot: None,
                 records,
             };
-            let mut view = captains_call_2027_lib::commands::build_view(&career, world());
+            let mut view = captains_call_2027_lib::commands::build_view(&career, &world());
             view.db_version_warning = mismatch;
             *careers().lock().map_err(|e| e.to_string())? = Some(career);
             Ok(serde_json::json!(view))
@@ -349,23 +398,23 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
         }
         "advance_day" => {
             let mut career = career()?;
-            career.advance_day(world());
+            career.advance_day(&world());
             Ok(serde_json::json!(
-                captains_call_2027_lib::commands::build_view(&career, world())
+                captains_call_2027_lib::commands::build_view(&career, &world())
             ))
         }
         "advance_one_day" => {
             let mut career = career()?;
-            career.advance_one_day(world());
+            career.advance_one_day(&world());
             Ok(serde_json::json!(
-                captains_call_2027_lib::commands::build_view(&career, world())
+                captains_call_2027_lib::commands::build_view(&career, &world())
             ))
         }
         "advance_to_my_match" => {
             let mut career = career()?;
-            career.advance_to_my_next_match(world());
+            career.advance_to_my_next_match(&world());
             Ok(serde_json::json!(
-                captains_call_2027_lib::commands::build_view(&career, world())
+                captains_call_2027_lib::commands::build_view(&career, &world())
             ))
         }
         "start_new_season" => {
@@ -373,7 +422,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let season = career.state.season;
             let report = captains_call_2027_lib::core::season::roll_season(
                 &mut career.state,
-                world(),
+                &world(),
                 season,
             );
             career.state.season = season + 1;
@@ -397,7 +446,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 );
             }
             Ok(serde_json::json!(
-                captains_call_2027_lib::commands::build_view(&career, world())
+                captains_call_2027_lib::commands::build_view(&career, &world())
             ))
         }
         "get_transfer_pool" => {
@@ -405,7 +454,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let seed = career.state.seed ^ ((career.state.season as u64) << 20);
             Ok(serde_json::json!(
                 captains_call_2027_lib::core::transfers::build_transfer_pool(
-                    world(),
+                    &world(),
                     &career.players,
                     career.state.player_team_id,
                     seed
@@ -418,7 +467,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let mut career = career()?;
             let seed = career.state.seed ^ ((career.state.season as u64) << 20);
             let listing = captains_call_2027_lib::core::transfers::build_transfer_pool(
-                world(),
+                &world(),
                 &career.players,
                 career.state.player_team_id,
                 seed,
@@ -431,7 +480,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let team_name = career.state.player_team_name.clone();
             let budget = career.state.budget.unwrap_or(1_000_000) as u64;
             let outcome = captains_call_2027_lib::core::transfers::place_bid(
-                world(),
+                &world(),
                 &mut career.players,
                 team_id,
                 &listing,
@@ -500,7 +549,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let mut career = career()?;
             career.state.training_focus = focus;
             Ok(serde_json::json!(
-                captains_call_2027_lib::commands::build_view(&career, world())
+                captains_call_2027_lib::commands::build_view(&career, &world())
             ))
         }
         "get_update_state" => Ok(update_view(
@@ -551,7 +600,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let fixture_id = arg_u32(args, "fixtureId")?;
             let career = career()?;
             let selection = career
-                .selection_for(world(), fixture_id)
+                .selection_for(&world(), fixture_id)
                 .ok_or_else(|| format!("fixture {fixture_id} not found"))?;
             Ok(serde_json::json!(selection))
         }
@@ -559,7 +608,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let fixture_id = arg_u32(args, "fixtureId")?;
             let selection = arg_json(args, "selection")?;
             let mut career = career()?;
-            career.set_selection(world(), fixture_id, selection)?;
+            career.set_selection(&world(), fixture_id, selection)?;
             Ok(serde_json::json!({}))
         }
 
@@ -567,7 +616,9 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
         "start_fixture" => {
             let fixture_id = arg_u32(args, "fixtureId")?;
             let mut career = career()?;
-            Ok(serde_json::json!(career.start_fixture(world(), fixture_id)?))
+            Ok(serde_json::json!(
+                career.start_fixture(&world(), fixture_id)?
+            ))
         }
         "get_match" => {
             let career = career().ok();
@@ -601,7 +652,7 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 .or_else(|| career.last_snapshot.clone())
                 .ok_or("no match has been played")?;
             let html =
-                captains_call_2027_lib::commands::almanack::scorecard_html(&snapshot, world());
+                captains_call_2027_lib::commands::almanack::scorecard_html(&snapshot, &world());
             let out = dir.join("scorecards");
             std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
             let path = out.join(format!("scorecard-{}.html", snapshot.match_id));
@@ -618,7 +669,7 @@ fn squad_for(team_id: u32) -> Vec<captains_call_2027_lib::Player> {
     let players = career()
         .ok()
         .map(|c| c.players.clone())
-        .unwrap_or_else(|| world().players.clone());
+        .unwrap_or_else(|| world().players);
     let is_national = world()
         .teams
         .iter()

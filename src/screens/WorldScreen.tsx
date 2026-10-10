@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../tools/api";
-import type { Player, Team, World } from "../types";
+import type { DbPackInfo, Player, Team, World } from "../types";
 import UpdatePanel from "./UpdatePanel";
 import { Button } from "../ui";
 
@@ -14,6 +14,8 @@ interface Props {
     firstSeason: number,
     resetForm: boolean,
   ) => void | Promise<void>;
+  /** Called after the active database is swapped, so App can reload the world. */
+  onWorldChanged: (world: World) => void;
 }
 
 const SEASONS = ["2027", "2028", "2029"];
@@ -25,7 +27,7 @@ function teamLabel(world: World, team: Team): string {
   return nation ? `${nation.short_name} · ${team.name}` : team.name;
 }
 
-export default function WorldScreen({ world, onStartCareer }: Props) {
+export default function WorldScreen({ world, onStartCareer, onWorldChanged }: Props) {
   const [teamId, setTeamId] = useState<number>(
     () => world.teams.find((t) => !t.is_national)?.id ?? world.teams[0]?.id ?? 0,
   );
@@ -37,6 +39,39 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
   const [squad, setSquad] = useState<Player[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [packs, setPacks] = useState<DbPackInfo[]>([]);
+  const [packKey, setPackKey] = useState<string>("");
+  const [switching, setSwitching] = useState(false);
+
+  useEffect(() => {
+    api
+      .listDbPacks()
+      .then((list) => {
+        setPacks(list);
+        // Preselect whatever database is actually loaded.
+        setPackKey(list.find((p) => p.dbVersion === world.db_version)?.key ?? "default");
+      })
+      .catch(() => undefined);
+  }, [world.db_version]);
+
+  /** Swap the active database, then reset the selection to a valid team. */
+  const changeDatabase = async (key: string) => {
+    setSwitching(true);
+    setError(null);
+    try {
+      const next = await api.loadDbPack(key);
+      onWorldChanged(next);
+      const firstPlayable =
+        next.teams.find((t) => !t.is_national)?.id ?? next.teams[0]?.id ?? 0;
+      setTeamId(firstPlayable);
+      setPackKey(key);
+      setSquad([]);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   const teamsByNation = useMemo(() => {
     const map = new Map<string, Team[]>();
@@ -82,6 +117,47 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
 
   return (
     <div className="stack">
+      <section className="panel">
+        <h2 className="panel__title">Database</h2>
+        <div className="setuprow">
+          <span className="setuprow__label">Active database</span>
+          <div className="setuprow__control">
+            <select
+              value={packKey}
+              onChange={(e) => void changeDatabase(e.target.value)}
+              disabled={switching}
+              aria-label="Database"
+              title="Choose which world to play"
+            >
+              {packs.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {packs
+          .filter((p) => p.key === packKey)
+          .map((p) => (
+            <div key={p.key}>
+              {p.realNames ? (
+                <p className="note note--warn">
+                  <b>Test database.</b> {p.description} Real player names carry
+                  right-of-publicity risk and are not shipped as first-party
+                  content.
+                </p>
+              ) : (
+                <p className="muted">{p.description}</p>
+              )}
+              <p className="muted">
+                {p.nations} nations · {p.teams} teams · {p.players} players ·
+                version {p.dbVersion}
+              </p>
+            </div>
+          ))}
+      </section>
+
       <section className="panel">
         <h2 className="panel__title">Setup Career</h2>
 

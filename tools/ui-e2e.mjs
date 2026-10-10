@@ -340,6 +340,82 @@ async function scenarioWorldAndCareer({ window, calls }) {
   check("invoke traffic recorded", calls.length > 0, `${calls.length} calls`);
 }
 
+/**
+ * The database picker. The real-names international pack must be offered and
+ * must actually swap the world the UI is driving — a dropdown that changes
+ * nothing is the exact "dead control" class of bug this suite exists for.
+ */
+async function scenarioDatabasePacks({ window, calls }) {
+  currentScenario = "database packs";
+
+  // Get back to the new-game screen: whichever screen the previous scenario
+  // left open, "Main Menu" returns to setup. The engine refuses a pack swap
+  // while a career exists, by design.
+  for (let i = 0; i < 4 && !hasText(window, "Setup Career"); i++) {
+    const mainMenu = buttons(window, /main menu/i)[0];
+    if (!mainMenu) break;
+    click(window, mainMenu);
+    await delay(400);
+  }
+  await until("world screen", () => hasText(window, "Setup Career"));
+
+  const picker = $(window, 'select[aria-label="Database"]');
+  check("database selector present", !!picker, "no select[aria-label=Database]");
+  if (!picker) return;
+
+  const options = [...picker.options].map((o) => ({ value: o.value, label: o.textContent }));
+  check(
+    "the fictional database is offered",
+    options.some((o) => o.value === "default"),
+    JSON.stringify(options),
+  );
+  check(
+    "the real-names international pack is offered",
+    options.some((o) => o.value === "real-international"),
+    JSON.stringify(options),
+  );
+
+  // Switching must warn that it is third-party test content.
+  setSelect(window, picker, "real-international");
+  await until("pack swap", () => hasText(window, "Test database"), 5000);
+
+  const world = await invoke(window, "get_world");
+  check(
+    "switching loads the real-names world",
+    world.db_version === "2027.10-real",
+    `db_version ${world.db_version}`,
+  );
+  check(
+    "real-names world has ten nations",
+    world.nations.length === 10,
+    `${world.nations.length} nations`,
+  );
+  check(
+    "real player names are present",
+    world.players.some((p) => p.name.includes("Kohli") || p.name.includes("Bumrah")),
+    "expected real squad names",
+  );
+  check("the pack is labelled as test data", hasText(window, "Test database"));
+  check(
+    "team list refreshed to the new world",
+    hasText(window, "India") || hasText(window, "Australia"),
+    "expected national sides in the selector",
+  );
+
+  // Swap back so later scenarios start from the fictional default.
+  const back = $(window, 'select[aria-label="Database"]');
+  if (back) {
+    setSelect(window, back, "default");
+    await delay(400);
+  }
+  const restored = await invoke(window, "get_world");
+  check(
+    "the fictional database is restorable",
+    restored.db_version !== "2027.10-real",
+    `db_version ${restored.db_version}`,
+  );
+}
+
 async function scenarioCareerControls({ window, calls }) {
   currentScenario = "career controls";
   const ff = buttons(window, /fast forward/i)[0];
@@ -635,6 +711,9 @@ async function main() {
     await scenarioMatch(booted);
     await scenarioContinue(booted);
     await scenarioSeasonRollover(booted);
+    // Runs last: it quits to the main menu to swap the database, which would
+    // invalidate any career the earlier scenarios set up.
+    await scenarioDatabasePacks(booted);
 
     const failures = results.filter((r) => !r.pass);
     const byScenario = new Map();

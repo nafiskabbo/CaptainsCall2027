@@ -7,6 +7,7 @@ import type {
   AppInfo,
   BidOutcome,
   CareerView,
+  DbPackInfo,
   Finances,
   TransferListing,
   UpdateState,
@@ -24,6 +25,12 @@ export const api = {
   getAppInfo: () => invoke<AppInfo>("get_app_info"),
   getWorld: () => invoke<World>("get_world"),
   getDbVersion: () => invoke<string>("get_db_version"),
+  /** Databases available at new-game; the fictional default is always first. */
+  listDbPacks: () => invoke<DbPackInfo[]>("list_db_packs"),
+  /** Swap the active database. Refused while a career is in progress. */
+  loadDbPack: (key: string) => invoke<World>("load_db_pack", { key }),
+  /** Abandon the career in progress without saving. */
+  quitToMenu: () => invoke<void>("quit_to_menu"),
   getSquad: (teamId: number) => invoke<Player[]>("get_squad", { teamId }),
   autoSelect: (teamId: number, format: Format) =>
     invoke<TeamSelection>("auto_select", { teamId, format }),

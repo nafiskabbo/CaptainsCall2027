@@ -11,17 +11,38 @@ use std::sync::Mutex;
 use tauri::{Manager, State};
 
 /// App state holding the world, the active career and the live match.
+///
+/// `world` is mutable so `load_db_pack` can swap the active database between
+/// careers; every read takes a short-lived borrow.
 pub struct AppState {
-    pub world: World,
+    pub world: std::sync::RwLock<World>,
     pub career: Mutex<Option<Career>>,
 }
 
 impl AppState {
     pub fn new(world: World) -> Self {
         AppState {
-            world,
+            world: std::sync::RwLock::new(world),
             career: Mutex::new(None),
         }
+    }
+
+    /// The currently loaded database.
+    ///
+    /// Cloned rather than borrowed so commands never hold the lock across an
+    /// `await`/IPC boundary.
+    pub fn world(&self) -> World {
+        self.world
+            .read()
+            .map(|w| w.clone())
+            .unwrap_or_else(|_| crate::world::load_world())
+    }
+
+    /// Replace the active database.
+    pub fn set_world(&self, world: World) -> Result<(), String> {
+        let mut guard = self.world.write().map_err(|e| e.to_string())?;
+        *guard = world;
+        Ok(())
     }
 
     /// Opens the saves database under `dir` (reopened per call; SQLite handles
@@ -63,7 +84,99 @@ pub fn get_app_info() -> AppInfo {
 
 #[tauri::command]
 pub fn get_world(state: SharedState<'_>) -> World {
-    state.world.clone()
+    state.world()
+}
+
+/// A selectable database, as shown on the new-game screen.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackInfo {
+    /// Stable key used by `load_db_pack`.
+    pub key: String,
+    pub label: String,
+    pub description: String,
+    pub db_version: String,
+    pub nations: u32,
+    pub teams: u32,
+    pub players: u32,
+    /// True when the pack uses real player/ground names rather than the
+    /// fictional defaults, so the UI can label it as third-party test data.
+    pub real_names: bool,
+}
+
+/// Every database the player can start a career from, default first.
+#[tauri::command]
+pub fn list_db_packs() -> Vec<PackInfo> {
+    let mut out = vec![PackInfo {
+        key: "default".into(),
+        label: "Captain's Call 2027 (fictional)".into(),
+        description: "The shipped database: twelve invented nations and their domestic sides."
+            .into(),
+        db_version: crate::world::DB_VERSION.to_string(),
+        nations: 0,
+        teams: 0,
+        players: 0,
+        real_names: false,
+    }];
+    for pack in crate::world::PACKS {
+        let world = crate::world::load_pack(pack.id);
+        out.push(PackInfo {
+            key: pack.id.key().to_string(),
+            label: pack.id.label().to_string(),
+            description: pack.id.description().to_string(),
+            db_version: world.db_version.clone(),
+            nations: world.nations.len() as u32,
+            teams: world.teams.len() as u32,
+            players: world.players.len() as u32,
+            real_names: matches!(pack.id, crate::world::PackId::RealInternational),
+        });
+    }
+    out
+}
+
+/// Load a database pack into the active session, replacing the current world.
+///
+/// Refused while a career is in progress: a career's fixtures, squads and
+/// records all reference the world it was created from, so swapping mid-career
+/// would leave the save inconsistent.
+#[tauri::command]
+pub fn load_db_pack(state: SharedState<'_>, key: String) -> Result<World, String> {
+    {
+        let guard = state.career.lock().map_err(|e| e.to_string())?;
+        if let Some(career) = guard.as_ref() {
+            if career.state.season_day > 1 || !career.state.fixtures.is_empty() {
+                return Err("finish or delete the current career before changing database".into());
+            }
+        }
+    }
+    let world = if key == "default" {
+        crate::world::load_world()
+    } else {
+        let Some(id) = crate::world::pack_from_key(&key) else {
+            return Err(format!("unknown database pack: {key}"));
+        };
+        crate::world::load_pack(id)
+    };
+    if world.teams.is_empty() {
+        return Err(format!("database pack '{key}' could not be loaded"));
+    }
+    // A career left over from the previous database would reference squads and
+    // grounds that no longer exist, so clear the slot on every successful swap.
+    *state.career.lock().map_err(|e| e.to_string())? = None;
+    state.set_world(world.clone())?;
+    Ok(world)
+}
+
+/// Abandon the career in progress without saving.
+///
+/// "Main Menu" has to clear the engine's career slot, not just the UI's: while
+/// a career object is live the engine treats one as in progress, which blocks
+/// changing the database and starting a fresh career.
+#[tauri::command]
+pub fn quit_to_menu(state: SharedState<'_>) -> Result<(), String> {
+    let mut guard = state.career.lock().map_err(|e| e.to_string())?;
+    *guard = None;
+    Ok(())
 }
 
 #[tauri::command]
@@ -73,18 +186,18 @@ pub fn get_db_version() -> String {
 
 #[tauri::command]
 pub fn get_squad(state: SharedState<'_>, team_id: u32) -> Vec<crate::core::types::Player> {
+    let world_ref = state.world();
     let career_players = state
         .career
         .lock()
         .ok()
         .and_then(|guard| guard.as_ref().map(|c| c.players.clone()));
     let source: Vec<crate::core::types::Player> =
-        career_players.unwrap_or_else(|| state.world.players.clone());
+        career_players.unwrap_or_else(|| world_ref.players.clone());
     source
         .iter()
         .filter(|p| {
-            if state
-                .world
+            if world_ref
                 .teams
                 .iter()
                 .find(|t| t.id == team_id)
@@ -106,16 +219,17 @@ pub fn auto_select(
     team_id: u32,
     format: Format,
 ) -> Result<crate::match_::TeamSelection, String> {
-    let team = state
-        .world
+    let world_ref = state.world();
+    let team = world_ref
         .teams
         .iter()
         .find(|t| t.id == team_id)
         .cloned()
         .ok_or_else(|| format!("team {team_id} not found"))?;
+    let world_ref = state.world();
     Ok(crate::match_::TeamSelection::auto_for(
         &team,
-        &state.world.players,
+        &world_ref.players,
         format,
     ))
 }
@@ -161,15 +275,16 @@ pub fn start_career(
     first_season: Option<u32>,
     reset_form: Option<bool>,
 ) -> Result<CareerView, String> {
+    let world_ref = state.world();
     let career = Career::start_with_options(
-        &state.world,
+        &world_ref,
         team_id,
         name,
         seed,
         first_season.unwrap_or(1),
         reset_form.unwrap_or(false),
     )?;
-    let view = build_view(&career, &state.world);
+    let view = build_view(&career, &world_ref);
     *state.career.lock().map_err(|e| e.to_string())? = Some(career);
     Ok(view)
 }
@@ -178,7 +293,8 @@ pub fn start_career(
 pub fn get_career(state: SharedState<'_>) -> Result<CareerView, String> {
     let guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_ref().ok_or("no career in progress")?;
-    Ok(build_view(career, &state.world))
+    let world_ref = state.world();
+    Ok(build_view(career, &world_ref))
 }
 
 #[tauri::command]
@@ -232,8 +348,9 @@ pub fn load_career(
     };
     // Saved careers carry their own developed player list; fall back to the
     // bundled world only for older saves that predate the players field.
+    let world_ref = state.world();
     let players = if loaded.players.is_empty() {
-        state.world.players.clone()
+        world_ref.players.clone()
     } else {
         loaded.players.clone()
     };
@@ -246,7 +363,7 @@ pub fn load_career(
         last_snapshot: None,
         records,
     };
-    let mut view = build_view(&career, &state.world);
+    let mut view = build_view(&career, &world_ref);
     view.db_version_warning = mismatch;
     *state.career.lock().map_err(|e| e.to_string())? = Some(career);
     Ok(view)
@@ -268,7 +385,8 @@ pub fn start_new_season(state: SharedState<'_>) -> Result<CareerView, String> {
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
     let season = career.state.season;
-    let report = crate::core::season::roll_season(&mut career.state, &state.world, season);
+    let world_ref = state.world();
+    let report = crate::core::season::roll_season(&mut career.state, &world_ref, season);
     career.state.season = season + 1;
     career.players = career.state.players.clone();
     for headline in report.retired.iter().take(3) {
@@ -289,7 +407,7 @@ pub fn start_new_season(state: SharedState<'_>) -> Result<CareerView, String> {
             },
         );
     }
-    Ok(build_view(career, &state.world))
+    Ok(build_view(career, &world_ref))
 }
 
 /// Transfer-window listings for the player's club.
@@ -300,8 +418,9 @@ pub fn get_transfer_pool(
     let guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_ref().ok_or("no career in progress")?;
     let seed = career.state.seed ^ ((career.state.season as u64) << 20);
+    let world_ref = state.world();
     Ok(crate::core::transfers::build_transfer_pool(
-        &state.world,
+        &world_ref,
         &career.players,
         career.state.player_team_id,
         seed,
@@ -318,8 +437,9 @@ pub fn bid_for_player(
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
     let seed = career.state.seed ^ ((career.state.season as u64) << 20);
+    let world_ref = state.world();
     let listing = crate::core::transfers::build_transfer_pool(
-        &state.world,
+        &world_ref,
         &career.players,
         career.state.player_team_id,
         seed,
@@ -330,7 +450,7 @@ pub fn bid_for_player(
 
     let budget = career.state.budget.unwrap_or(1_000_000) as u64;
     let outcome = crate::core::transfers::place_bid(
-        &state.world,
+        &world_ref,
         &mut career.players,
         career.state.player_team_id,
         &listing,
@@ -384,13 +504,13 @@ pub struct Finances {
 
 #[tauri::command]
 pub fn get_finances(state: SharedState<'_>) -> Result<Finances, String> {
+    let world_ref = state.world();
     let guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_ref().ok_or("no career in progress")?;
     let team_id = career.state.player_team_id;
     Ok(Finances {
         budget: career.state.budget.unwrap_or_else(|| {
-            state
-                .world
+            world_ref
                 .teams
                 .iter()
                 .find(|t| t.id == team_id)
@@ -411,7 +531,8 @@ pub fn set_training_focus(
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
     career.state.training_focus = focus;
-    Ok(build_view(career, &state.world))
+    let world_ref = state.world();
+    Ok(build_view(career, &world_ref))
 }
 
 /// Skip to the next match day, simulating other fixtures.
@@ -419,8 +540,9 @@ pub fn set_training_focus(
 pub fn advance_day(state: SharedState<'_>) -> Result<CareerView, String> {
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
-    career.advance_day(&state.world);
-    Ok(build_view(career, &state.world))
+    let world_ref = state.world();
+    career.advance_day(&world_ref);
+    Ok(build_view(career, &world_ref))
 }
 
 /// Step the calendar by a single day (««): always moves, simulates that day.
@@ -428,8 +550,9 @@ pub fn advance_day(state: SharedState<'_>) -> Result<CareerView, String> {
 pub fn advance_one_day(state: SharedState<'_>) -> Result<CareerView, String> {
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
-    career.advance_one_day(&state.world);
-    Ok(build_view(career, &state.world))
+    let world_ref = state.world();
+    career.advance_one_day(&world_ref);
+    Ok(build_view(career, &world_ref))
 }
 
 /// Skip straight to the player's next fixture (»»), simulating the rounds
@@ -438,8 +561,9 @@ pub fn advance_one_day(state: SharedState<'_>) -> Result<CareerView, String> {
 pub fn advance_to_my_match(state: SharedState<'_>) -> Result<CareerView, String> {
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
-    career.advance_to_my_next_match(&state.world);
-    Ok(build_view(career, &state.world))
+    let world_ref = state.world();
+    career.advance_to_my_next_match(&world_ref);
+    Ok(build_view(career, &world_ref))
 }
 
 // ---------------- live match commands ----------------
@@ -452,8 +576,9 @@ pub fn get_selection(
 ) -> Result<crate::match_::TeamSelection, String> {
     let guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_ref().ok_or("no career in progress")?;
+    let world_ref = state.world();
     career
-        .selection_for(&state.world, fixture_id)
+        .selection_for(&world_ref, fixture_id)
         .ok_or_else(|| format!("fixture {fixture_id} not found"))
 }
 
@@ -466,14 +591,16 @@ pub fn set_selection(
 ) -> Result<(), String> {
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
-    career.set_selection(&state.world, fixture_id, selection)
+    let world_ref = state.world();
+    career.set_selection(&world_ref, fixture_id, selection)
 }
 
 #[tauri::command]
 pub fn start_fixture(state: SharedState<'_>, fixture_id: u32) -> Result<MatchSnapshot, String> {
     let mut guard = state.career.lock().map_err(|e| e.to_string())?;
     let career = guard.as_mut().ok_or("no career in progress")?;
-    career.start_fixture(&state.world, fixture_id)
+    let world_ref = state.world();
+    career.start_fixture(&world_ref, fixture_id)
 }
 
 #[tauri::command]
@@ -522,7 +649,8 @@ pub fn export_scorecard(app: tauri::AppHandle, state: SharedState<'_>) -> Result
         .or_else(|| career.last_snapshot.clone())
         .ok_or("no match has been played")?;
 
-    let html = crate::commands::almanack::scorecard_html(&snapshot, &state.world);
+    let world_ref = state.world();
+    let html = crate::commands::almanack::scorecard_html(&snapshot, &world_ref);
 
     let base = app
         .path()

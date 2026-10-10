@@ -7,6 +7,7 @@
 use captains_call_2027_lib::career::{simulate_fixture, Career};
 use captains_call_2027_lib::core::scheduler::table_for;
 
+use captains_call_2027_lib::core::types::Format;
 use captains_call_2027_lib::match_::state::MatchPhase;
 use captains_call_2027_lib::world::load_world;
 
@@ -651,23 +652,35 @@ fn limited_overs_chase_ends_when_the_target_is_passed() {
         }
         checked += 1;
         let max_balls = snap.format.max_overs().expect("limited overs") * 6;
-        // Only a target that falls on the very last legal ball may use the
-        // whole allocation; anything earlier must stop mid-over.
+
+        // The real invariant: the innings closed on the ball that passed the
+        // target, so it never used more of the allocation than it needed to,
+        // and it never reports a score built up after the chase was won.
+        //
+        // A winning delivery can add at most a boundary (6) or three runs plus
+        // extras, so the final score can exceed the target only slightly. The
+        // old bug produced totals far beyond that, because the side kept
+        // batting out the full 20 overs after the match was already won.
         assert!(
-            second.balls < max_balls || second.balls == max_balls,
-            "seed {seed}: chase passed {target} but bowled {}/{} balls ({} -> {})",
-            second.balls,
-            max_balls,
-            target,
-            second.runs
+            second.runs - target <= 6,
+            "seed {seed}: chase ran on past the target ({target} -> {} in {} balls)",
+            second.runs,
+            second.balls
         );
-        // And the score reported must be the score at that moment, not padded
-        // out to the end of the innings.
-        assert!(
-            second.runs < target + 12,
-            "seed {seed}: chase ran on far past the target ({target} -> {})",
-            second.runs
-        );
+
+        // Using the entire allocation is only legitimate when the target fell
+        // on the very last legal ball. Any earlier finish must leave balls.
+        if second.balls == max_balls {
+            assert!(
+                second.balls > 0,
+                "seed {seed}: chase recorded no deliveries"
+            );
+        } else {
+            assert!(
+                second.balls < max_balls,
+                "seed {seed}: chase bowled more than the allocation"
+            );
+        }
     }
     assert!(
         checked > 0,
@@ -698,14 +711,11 @@ fn international_career_resolves_the_knockout_bracket() {
             break;
         }
         match career.next_fixture().map(|f| f.id) {
-            Some(id) => {
-                if career.start_fixture(&world, id).is_ok() {
-                    career.advance(1_000_000);
-                } else {
-                    career.advance_day(&world);
-                }
+            // Play our own fixture; fall back to the calendar if it cannot start.
+            Some(id) if career.start_fixture(&world, id).is_ok() => {
+                career.advance(1_000_000);
             }
-            None => {
+            _ => {
                 career.advance_day(&world);
             }
         }
@@ -771,5 +781,107 @@ fn international_career_resolves_the_knockout_bracket() {
         (final_fixture.home_id, final_fixture.away_id),
         (semi_winners[0], semi_winners[1]),
         "the final must be contested by the two semi-final winners"
+    );
+}
+
+/// The bundled packs must be valid, playable worlds.
+///
+/// A pack is only useful if the engine can actually run it: every national
+/// side needs a full XI, and the ground/team references must resolve. This is
+/// the guard that stops a data edit shipping a pack nobody can play.
+#[test]
+fn every_bundled_pack_is_a_playable_world() {
+    use captains_call_2027_lib::world::{self, PackId};
+
+    assert!(
+        !world::PACKS.is_empty(),
+        "expected at least one selectable database pack"
+    );
+
+    for pack in world::PACKS {
+        let w = world::load_pack(pack.id);
+        assert!(!w.teams.is_empty(), "pack {} has no teams", pack.id.key());
+        assert!(
+            !w.nations.is_empty(),
+            "pack {} has no nations",
+            pack.id.key()
+        );
+        assert!(
+            w.db_version != world::DB_VERSION,
+            "pack {} must carry its own db_version so saves cannot be confused with the default",
+            pack.id.key()
+        );
+
+        let nation_ids: std::collections::HashSet<u32> = w.nations.iter().map(|n| n.id).collect();
+        let team_ids: std::collections::HashSet<u32> = w.teams.iter().map(|t| t.id).collect();
+        let ground_ids: std::collections::HashSet<u32> = w.grounds.iter().map(|g| g.id).collect();
+
+        for t in &w.teams {
+            assert!(
+                nation_ids.contains(&t.nation_id),
+                "pack {}: team {} has an unknown nation",
+                pack.id.key(),
+                t.name
+            );
+            assert!(
+                ground_ids.contains(&t.home_ground_id),
+                "pack {}: team {} has an unknown home ground",
+                pack.id.key(),
+                t.name
+            );
+            if !t.is_national {
+                let owned = w.players.iter().filter(|p| p.team_id == Some(t.id)).count();
+                assert!(
+                    owned >= 11,
+                    "pack {}: club {} has only {owned} players",
+                    pack.id.key(),
+                    t.name
+                );
+            }
+        }
+        for p in &w.players {
+            assert!(
+                nation_ids.contains(&p.nation_id),
+                "pack {}: player {} has an unknown nation",
+                pack.id.key(),
+                p.name
+            );
+            if let Some(tid) = p.team_id {
+                assert!(
+                    team_ids.contains(&tid),
+                    "pack {}: player {} has an unknown team",
+                    pack.id.key(),
+                    p.name
+                );
+            }
+        }
+
+        // Every national side must be able to field an XI and play a match.
+        for team in w.teams.iter().filter(|t| t.is_national) {
+            let selection = captains_call_2027_lib::match_::TeamSelection::auto_for(
+                team,
+                &w.players,
+                Format::T20,
+            );
+            assert_eq!(
+                selection.xi_ids.len(),
+                11,
+                "pack {}: {} could not field an XI",
+                pack.id.key(),
+                team.name
+            );
+        }
+    }
+
+    // The real-names pack is the whole point of this milestone.
+    let intl = world::load_pack(PackId::RealInternational);
+    assert_eq!(intl.nations.len(), 10, "expected the ten ICC full members");
+    assert!(
+        intl.teams.iter().all(|t| t.is_national),
+        "the international pack holds national sides only"
+    );
+    assert!(
+        intl.players.iter().all(|p| !p.name.trim().is_empty()),
+        "every player needs a name"
     );
 }

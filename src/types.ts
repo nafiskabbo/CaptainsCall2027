@@ -227,6 +227,24 @@ export interface AppInfo {
   phase: string;
 }
 
+/**
+ * A selectable database (`DbPackInfo` in Rust, camelCase).
+ *
+ * The shipped default is the fictional world. Additional packs are opt-in;
+ * `realNames` marks a pack that uses real player and ground names, so the UI
+ * labels it as a test database rather than first-party content.
+ */
+export interface DbPackInfo {
+  key: string;
+  label: string;
+  description: string;
+  dbVersion: string;
+  nations: number;
+  teams: number;
+  players: number;
+  realNames: boolean;
+}
+
 export interface FixtureResult {
   home_runs: number;
   away_runs: number;
