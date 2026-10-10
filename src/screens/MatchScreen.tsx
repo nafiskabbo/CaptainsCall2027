@@ -387,7 +387,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
             </span>
           </div>
 
-          <div style={{ position: "relative" }}>
+          <div className="groundview">
             <MatchView
               snapshot={snapshot}
               fielderNames={fielderNames}

@@ -54,3 +54,8 @@ old-game/
 src/assets/cc2014/outcomes/
 src/assets/cc2014/shots/
 src/assets/cc2014/audio/
+src/assets/cc2014/*.bmp
+src/assets/cc2014/header.png
+src/assets/cc2014/navbar.png
+src/assets/cc2014/footer.png
+src/assets/cc2014/sidebar2.png

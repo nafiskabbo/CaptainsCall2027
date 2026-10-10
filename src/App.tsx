@@ -475,6 +475,7 @@ export default function App() {
 
     return (
       <AppShell
+        fullBleed
         clock={`Day ${snapshot.clock.day}`}
         clockTitle={
           snapshot.format === "test"

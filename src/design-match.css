@@ -710,3 +710,114 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 }
+
+/*
+  The match screen, rebuilt against the original's actual screenshot.
+
+  The previous version wrapped the ground in a stack of panels: an innings
+  strip, a big score line above the field, the commentary in a box off to one
+  side, and separate panels for controls and the over grid. The original does
+  none of that. Its match view is full-bleed — the field fills the window, the
+  commentary is a stack of dark bars lying across the lower pitch, and there is
+  a single scorebar pinned to the bottom edge. No sidebar, no panels.
+
+  Matching the screenshot rather than the earlier interpretation is the whole
+  point of this pass; the structural difference is larger than any colour.
+*/
+.match {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #0d1a12;
+}
+
+.match__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The ground takes everything; the controls float over it. */
+.match .stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.match .groundview {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The original shows the score once, in the bottom bar. The big score line
+   above the ground was this project's own invention. */
+.bigscore {
+  display: none;
+}
+
+/*
+  Commentary: dark translucent bars across the lower pitch, most recent one
+  lit. In the original these lie over the ground rather than sitting in a panel
+  beside it, which is why they read as part of the match rather than a sidebar.
+*/
+.commentary-overlay {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 8%;
+  width: min(62%, 620px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.commentary-overlay__line {
+  background: rgba(8, 16, 12, 0.86);
+  color: #dfe8e0;
+  font-size: 0.82rem;
+  text-align: center;
+  padding: 0.28rem 0.6rem;
+  border-radius: 1px;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+/* The ball just bowled, and anything that ended a wicket, are lit — the
+   original's green highlight bar. */
+.commentary-overlay__line--ball,
+.commentary-overlay__line--event {
+  background: linear-gradient(180deg, #2f7a2f, #1d5a1d);
+  color: #f2ffe8;
+  border-color: #4aa64a;
+  font-weight: 600;
+}
+
+/*
+  The scorebar: one dark strip across the very bottom, with the team score in
+  the accent colour and the two batters either side of it.
+*/
+.scorebar {
+  background: linear-gradient(180deg, rgba(6, 14, 10, 0.86), rgba(4, 10, 7, 0.97));
+  border-top: 1px solid rgba(120, 160, 130, 0.35);
+  padding: 0.3rem 0.8rem;
+  gap: 1.1rem;
+  font-size: 0.95rem;
+}
+
+.scorebar__score,
+.scorebar__team {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* Simulation controls sit as a floating strip rather than a boxed panel. */
+.match .panel {
+  background: rgba(8, 18, 12, 0.88);
+  border-color: rgba(120, 160, 130, 0.3);
+}

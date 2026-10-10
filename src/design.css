@@ -23,23 +23,36 @@
    ============================================================ */
 
 :root {
-  /* --- royal blue frame (title bar + left rail) --- */
-  --blue-900: #0b2f66;
-  --blue-800: #103f86;
-  --blue-700: #1550a6;
-  --blue-600: #1a5cc8;
-  --blue-500: #2a6cd8;
-  --blue-400: #4a86e2;
+  /*
+    --- the blue frame (title bar + left rail) ---
+
+    Sampled from the original rather than chosen: its chrome is a flat
+    #22529a, sampled off the header and the sidebar in the shipped screenshots
+    and confirmed against `gui/std/Panels/header.png`. The previous ramp ran
+    much brighter and more saturated (#2a6cd8), which read as a different
+    product. Buttons sit a step lighter — #5591cb in the original.
+  */
+  --blue-900: #122f5c;
+  --blue-800: #1a3f7d;
+  --blue-700: #22529a;
+  --blue-600: #2f6bb4;
+  --blue-500: #3d7cc9;
+  --blue-400: #5591cb;
   --blue-300: #7fb0e8;
 
   /* --- metallic silver: tabs, scrollbars, neutral buttons --- */
-  --silver-100: #f2f2f2;
-  --silver-200: #dcdcdc;
-  --silver-300: #c4c4c4;
-  --silver-400: #a8a8a8;
-  --silver-500: #8c8c8c;
-  --silver-600: #6f6f6f;
-  --silver-700: #565656;
+  /*
+    Sampled too: the original's tab strip reads #9fa5a0 and its footer
+    #a7ada8, both a green-shifted grey rather than neutral. The previous ramp
+    was a flat neutral grey, which is what made the tabs look wrong.
+  */
+  --silver-100: #e4e7e4;
+  --silver-200: #cfd3cf;
+  --silver-300: #b4b9b4;
+  --silver-400: #a7ada8;
+  --silver-500: #9fa5a0;
+  --silver-600: #858b86;
+  --silver-700: #6c716d;
   /* The classic Windows/Office metal ramp, light at the top. */
   --metal: linear-gradient(180deg, #f6f6f6 0%, #d8d8d8 48%, #b4b4b4 52%, #cfcfcf 100%);
   --metal-down: linear-gradient(180deg, #b0b0b0 0%, #d2d2d2 50%, #ededed 100%);
@@ -57,7 +70,7 @@
   --ink-faint: #9db3a4;
 
   /* --- accents --- */
-  --gold: #e8e600;
+  --gold: #e8fd00;  /* sampled: the sub-tab accent is a bright yellow-green */
   --gold-dim: #c9c400;
   --red: #c0453f;
   --green-lit: #4fbf6a;
@@ -439,4 +452,25 @@ body {
 .actionbar__group {
   display: flex;
   gap: 0.3rem;
+}
+/*
+  Full-bleed content, used by the match view.
+
+  The original's match screen has no left rail: the ground fills the window,
+  the commentary lies across the pitch, and the score is in a single bar on the
+  bottom edge. The rail and the boxed content frame belong to the career and
+  management screens, not to the match.
+*/
+.app--fullbleed {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+}
+
+.app--fullbleed > .sidebar {
+  display: none;
+}
+
+.app--fullbleed > .content__inner {
+  padding: 0;
+  max-width: none;
 }

@@ -24,6 +24,15 @@ interface Props {
   quickSearch?: ReactNode;
   actionBar: ReactNode;
   children: ReactNode;
+  /**
+   * Hide the left rail and let the content go full-bleed.
+   *
+   * The original's match view does this: the ground fills the window with the
+   * commentary lying over the pitch, and there is no rail at all. Wrapping the
+   * match screen in the rail — as this project did — was one of the larger
+   * reasons it did not look like the original.
+   */
+  fullBleed?: boolean;
 }
 
 /**
@@ -64,9 +73,10 @@ export default function AppShell({
   quickSearch,
   actionBar,
   children,
+  fullBleed,
 }: Props) {
   return (
-    <div className="app">
+    <div className={fullBleed ? "app app--fullbleed" : "app"}>
       <header className="topbar">
         <div className="topbar__clock">
           <b>{clock}</b>
