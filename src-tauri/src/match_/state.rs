@@ -46,6 +46,39 @@ pub struct BallOutcome {
     /// Batsman on strike for the *next* ball (single changes strike).
     pub strike_changes: bool,
     pub commentary: String,
+    /// Where the ball went, as a bearing in degrees off the striker's stumps.
+    ///
+    /// 0 = straight back past the bowler, 90 = square on the off side,
+    /// 180 = fine leg. This is what lets the 2D view animate the actual shot
+    /// instead of looping a fixed bowling action.
+    #[serde(default)]
+    pub direction_deg: u16,
+    /// How the ball was played. Drives the ball's height/arc in the view.
+    #[serde(default)]
+    pub shot: ShotKind,
+}
+
+/// How a shot was played, which decides the animation arc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ShotKind {
+    /// Straight to a fielder or back down the pitch.
+    #[default]
+    Defended,
+    /// Along the ground into the gaps.
+    Driven,
+    /// Cross-bat.
+    Cut,
+    /// Leg-side pull.
+    Pulled,
+    /// Over the boundary on the full.
+    Lofted,
+    /// Left the bat and carried to a fielder/slip.
+    Edged,
+    /// Never left the bat.
+    Beaten,
+    /// Missed everything.
+    Missed,
 }
 
 impl BallOutcome {
@@ -120,7 +153,7 @@ pub struct BowlingCard {
     pub no_balls: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Innings {
     pub batting_team_id: u32,
     pub bowling_team_id: u32,

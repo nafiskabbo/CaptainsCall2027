@@ -119,6 +119,22 @@ export interface Dismissal {
   fielder_id: number | null;
 }
 
+/**
+ * How a shot was played (`ShotKind` in Rust).
+ *
+ * Drives the ball's arc in the 2D view: `lofted` flies high, `edged` dribbles
+ * away low, everything else stays on the deck.
+ */
+export type ShotKind =
+  | "defended"
+  | "driven"
+  | "cut"
+  | "pulled"
+  | "lofted"
+  | "edged"
+  | "beaten"
+  | "missed";
+
 export interface BallOutcome {
   runs: number;
   extra_runs: number;
@@ -128,6 +144,13 @@ export interface BallOutcome {
   dismissal: Dismissal | null;
   strike_changes: boolean;
   commentary: string;
+  /**
+   * Bearing in degrees off the striker's stumps: 0 is straight back past the
+   * bowler, 90 square on the off side, 180 fine leg. Reported by the engine so
+   * the view animates the shot that was actually played rather than a loop.
+   */
+  direction_deg: number;
+  shot: ShotKind;
 }
 
 // Rust: FieldPreset with #[serde(rename_all = "snake_case")]

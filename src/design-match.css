@@ -140,6 +140,131 @@
   color: var(--gold);
 }
 
+/* ---- big central score line, as the original shows above the ground ---- */
+.bigscore {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.6rem;
+  background: rgba(0, 45, 18, 0.72);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius);
+  font-variant-numeric: tabular-nums;
+}
+
+.bigscore__team {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bigscore__value {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.bigscore__overs {
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+
+.bigscore__batters {
+  display: flex;
+  gap: 1.1rem;
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+
+.bigscore__batters b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---- the outcome grid: last three overs as coloured ball icons ---- */
+.overgrid {
+  padding: 0.35rem 0.5rem;
+}
+
+.overgrid__row {
+  display: grid;
+  grid-template-columns: 62px 84px 1fr 52px;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.18rem 0.1rem;
+}
+
+.overgrid__row--head {
+  font-size: 0.76rem;
+  color: var(--gold);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
+}
+
+.overgrid__cell {
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.overgrid__cell--balls {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.overgrid__cell--num {
+  text-align: right;
+}
+
+/*
+  Outcome icons. The original uses rounded, colour-coded chips — orange for
+  runs, green for boundaries, red for a wicket — which is what makes an over
+  readable at a glance.
+*/
+.ball {
+  display: grid;
+  place-items: center;
+  min-width: 21px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.ball--dot {
+  background: linear-gradient(180deg, #8a8a8a, #5f5f5f);
+}
+
+.ball--run {
+  background: linear-gradient(180deg, #e08a3c, #b45f18);
+}
+
+.ball--four {
+  background: linear-gradient(180deg, #4fbf6a, #2c7f42);
+}
+
+.ball--six {
+  background: linear-gradient(180deg, #2a9ad4, #15628f);
+}
+
+.ball--w {
+  background: linear-gradient(180deg, #d6453f, #8f231f);
+}
+
+.ball--extra {
+  background: linear-gradient(180deg, #a06fc4, #5e3680);
+}
+
 /* bottom scorebar */
 .scorebar {
   position: absolute;

@@ -5,7 +5,7 @@
 //! from the caller passing `&mut SimRng` (specs FR-13, NFR-7).
 
 use super::state::{
-    BallOutcome, Dismissal, DismissalType, ExtraKind, FieldPreset, Innings, MatchInput,
+    BallOutcome, Dismissal, DismissalType, ExtraKind, FieldPreset, Innings, MatchInput, ShotKind,
 };
 use crate::core::rng::{clamp, Distribution, SimRng};
 use crate::core::types::{Format, Player, Team};
@@ -215,8 +215,8 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
         ONE => plain(1, false, rng),
         TWO => plain(2, false, rng),
         THREE => plain(3, true, rng),
-        FOUR => plain(4, false, rng),
-        SIX => plain(6, false, rng),
+        FOUR => four(rng),
+        SIX => six(rng),
         OUT => wicket(&wicket_ctx, rng),
         WIDE => BallOutcome {
             runs: 0,
@@ -233,6 +233,9 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
                     "Sprayed down leg, wide called.",
                 ],
             ),
+            // A wide never reaches the bat, so it goes past the off side.
+            direction_deg: (rng.below(50) + 70) as u16,
+            shot: ShotKind::Beaten,
         },
         NOBALL => BallOutcome {
             runs: 0,
@@ -249,8 +252,84 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
                     "No ball called, free hit incoming.",
                 ],
             ),
+            direction_deg: (rng.below(120) + 30) as u16,
+            shot: ShotKind::Driven,
         },
         _ => plain(0, false, rng),
+    }
+}
+
+/// Pick a bearing, weighted so square and straight shots are commoner than
+/// fine edges. `centre` is the mode in degrees, `spread` the half-width.
+fn bearing(rng: &mut SimRng, centre: u16, spread: u16) -> u16 {
+    let offset = rng.below(spread.max(1) as u32) as i32 - (spread / 2) as i32;
+    (centre as i32 + offset).rem_euclid(360) as u16
+}
+
+/// The off side spans roughly 20-100 degrees; leg is 100-200.
+fn off_side(rng: &mut SimRng) -> u16 {
+    bearing(rng, 60, 80)
+}
+
+fn leg_side(rng: &mut SimRng) -> u16 {
+    bearing(rng, 150, 70)
+}
+
+fn four(rng: &mut SimRng) -> BallOutcome {
+    // Boundaries favour the off side and square cuts over the leg side.
+    let direction_deg = match rng.below(4) {
+        0 => bearing(rng, 30, 30),
+        1 => bearing(rng, 90, 40),
+        2 => bearing(rng, 165, 45),
+        _ => bearing(rng, 60, 60),
+    };
+    BallOutcome {
+        runs: 4,
+        extra_runs: 0,
+        is_boundary_four: true,
+        is_boundary_six: false,
+        extra: None,
+        dismissal: None,
+        strike_changes: false,
+        commentary: commentary(
+            rng,
+            &[
+                "FOUR! Cracked through the covers.",
+                "FOUR! Threaded fine past the slips.",
+                "FOUR! Timing, no hesitation.",
+                "FOUR! Beats the sweeper.",
+            ],
+        ),
+        direction_deg,
+        shot: ShotKind::Driven,
+    }
+}
+
+fn six(rng: &mut SimRng) -> BallOutcome {
+    // A six is nearly always lofted straight or over midwicket.
+    let direction_deg = match rng.below(3) {
+        0 => bearing(rng, 20, 30),
+        1 => bearing(rng, 120, 50),
+        _ => bearing(rng, 160, 40),
+    };
+    BallOutcome {
+        runs: 6,
+        extra_runs: 0,
+        is_boundary_four: false,
+        is_boundary_six: true,
+        extra: None,
+        dismissal: None,
+        strike_changes: false,
+        commentary: commentary(
+            rng,
+            &[
+                "SIX! Launched over midwicket.",
+                "SIX! That's out of the ground.",
+                "SIX! Picked the length early.",
+            ],
+        ),
+        direction_deg,
+        shot: ShotKind::Lofted,
     }
 }
 
@@ -279,6 +358,18 @@ impl WicketContext {
 fn plain(runs: u32, strike_changes: bool, rng: &mut SimRng) -> BallOutcome {
     let text = run_text(runs);
     let lines: Vec<&str> = vec![text.as_str()];
+    // Scoring shots go where the ball is actually played: mostly through the
+    // off side, with leg-side singles and a few pushed straight.
+    let (direction_deg, shot) = match runs {
+        0 => match rng.below(3) {
+            0 => (bearing(rng, 0, 40), ShotKind::Defended),
+            1 => (bearing(rng, 175, 40), ShotKind::Defended),
+            _ => (leg_side(rng), ShotKind::Beaten),
+        },
+        1 => (off_side(rng), ShotKind::Driven),
+        2 => (off_side(rng), ShotKind::Driven),
+        _ => (leg_side(rng), ShotKind::Driven),
+    };
     BallOutcome {
         runs,
         extra_runs: 0,
@@ -288,6 +379,8 @@ fn plain(runs: u32, strike_changes: bool, rng: &mut SimRng) -> BallOutcome {
         dismissal: None,
         strike_changes,
         commentary: commentary(rng, &lines),
+        direction_deg,
+        shot,
     }
 }
 
@@ -336,6 +429,19 @@ fn wicket(ctx: &WicketContext, rng: &mut SimRng) -> BallOutcome {
         DismissalType::HitWicket => "Hit wicket! Trod on his own stumps.",
         DismissalType::NotOut => "Not out.",
     };
+    // Where the dismissal happened, which is what the view animates to:
+    // caught goes to a fielder, bowled/lbw stay at the pitch, a run out is
+    // made down the pitch to the stumps at the bowler's end.
+    let (direction_deg, shot) = match kind {
+        DismissalType::Caught => (bearing(rng, 55, 90), ShotKind::Edged),
+        DismissalType::CaughtAndBowled => (bearing(rng, 150, 70), ShotKind::Edged),
+        DismissalType::Lbw => (0, ShotKind::Missed),
+        DismissalType::Bowled => (0, ShotKind::Missed),
+        DismissalType::Stumped => (170, ShotKind::Beaten),
+        DismissalType::RunOut => (180, ShotKind::Defended),
+        DismissalType::HitWicket => (0, ShotKind::Defended),
+        DismissalType::NotOut => (0, ShotKind::Defended),
+    };
     BallOutcome {
         runs: 0,
         extra_runs: 0,
@@ -353,6 +459,8 @@ fn wicket(ctx: &WicketContext, rng: &mut SimRng) -> BallOutcome {
         }),
         strike_changes: false,
         commentary: commentary.to_string(),
+        direction_deg,
+        shot,
     }
 }
 

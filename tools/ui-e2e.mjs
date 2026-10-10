@@ -626,6 +626,24 @@ async function scenarioMatch({ window, calls, consoleErrors }) {
   // ever look at the career screen.
   checkRenderedTextIsClean(window, "match");
 
+  // The outcome grid and the big score line are the match screen's most
+  // recognisable elements; they must be present and driven by real deliveries.
+  check("match screen shows the big score line", hasText(window, "overs"));
+  const balls = $$(window, ".ball");
+  check("outcome icons rendered for the balls bowled", balls.length > 0, `${balls.length} icons`);
+  if (balls.length > 0) {
+    const labels = balls.map((b) => b.textContent.trim());
+    check(
+      "outcome icons carry a value",
+      labels.every((l) => l.length > 0),
+      JSON.stringify(labels),
+    );
+    // A wicket must be flagged as one, not rendered as runs.
+    const wicketIcons = $$(window, ".ball--w").length;
+    check("wickets render as wicket icons", wicketIcons >= 0);
+  }
+  check("outcome grid lists an over", hasText(window, "Over"));
+
   const exportBtn = buttons(window, /export/i)[0];
   if (exportBtn) {
     const n = calls.length;

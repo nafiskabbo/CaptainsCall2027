@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../tools/api";
 import { cueForBall, sound } from "../lib/audio";
 import type {
+  BallOutcome,
   FieldPreset,
   Format,
   MatchInput,
@@ -169,15 +170,68 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
   );
   const bowlerCard = innings?.bowling_cards.find((c) => c.player_id === snapshot.bowler_id);
 
-  // Partnership: runs since the last wicket.
+  /*
+    Partnership: runs and balls since the last wicket.
+
+    The ball count was previously `runs * 3` — a guess that printed "19 runs
+    from 57 balls" for a partnership that had faced far fewer. Balls are now
+    counted from the actual deliveries since the last wicket.
+  */
   const partnership = useMemo(() => {
     if (!innings) return null;
     const start = innings.fow.length > 0 ? innings.fow[innings.fow.length - 1] : 0;
-    return innings.runs - start;
-  }, [innings]);
+    const runs = innings.runs - start;
+    // `recent_balls` is newest-first; count back to the last wicket.
+    let balls = 0;
+    for (const b of snapshot.recent_balls) {
+      if (b.dismissal) break;
+      balls += 1;
+    }
+    return { runs, balls };
+  }, [innings, snapshot.recent_balls]);
 
   const homeTeam = world.teams.find((t) => t.id === snapshot.home_team_id);
   const awayTeam = world.teams.find((t) => t.id === snapshot.away_team_id);
+
+  // Nation short code, used on the scorebug the way the original shows "ENG 43/1".
+  const batCode = (battingTeam?.name ?? "---").slice(0, 3).toUpperCase();
+  const bowlCode = (bowlingTeam?.name ?? "---").slice(0, 3).toUpperCase();
+
+  /**
+   * The last few overs rebuilt as ball-by-ball rows.
+   *
+   * The original shows this as a grid of coloured outcome icons — the single
+   * most recognisable part of its match screen, and genuinely useful: you can
+   * read the shape of an over at a glance instead of scanning commentary.
+   * `over_summaries` only carries totals, so the balls are reconstructed from
+   * the engine's own delivery history via `recent_balls`, newest first.
+   */
+  const overRows = useMemo(() => {
+    if (!innings) return [];
+    const currentOver = Math.floor(innings.balls / 6);
+    const firstOver = Math.max(1, currentOver - 2);
+    const rows: { over: number; bowler: string; balls: BallOutcome[]; runs: number }[] = [];
+    // `recent_balls` is capped, so only claim the overs we can actually show.
+    const available = snapshot.recent_balls.length;
+    for (let over = firstOver; over <= currentOver; over++) {
+      const start = (currentOver - over) * 6;
+      const slice = snapshot.recent_balls.slice(start, start + 6);
+      if (slice.length === 0) continue;
+      rows.push({
+        over,
+        bowler:
+          innings.over_summaries.find((o) => o.over === over)?.bowler_id !== undefined
+            ? world.players.find((p) => p.id === innings.over_summaries.find((o) => o.over === over)?.bowler_id)
+                ?.name.split(" ")
+                .slice(-1)[0] ?? ""
+            : "",
+        balls: [...slice].reverse(),
+        runs: slice.reduce((sum, b) => sum + b.runs + b.extra_runs, 0),
+      });
+    }
+    void available;
+    return rows;
+  }, [innings, snapshot.recent_balls, world.players]);
 
   // ---- sound ----
   // Play a cue whenever the engine reports deliveries the UI has not seen yet.
@@ -254,6 +308,37 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
       <div className="match__body">
         {/* ---- ground + overlays ---- */}
         <div className="stack">
+          {/* Big central score line, as the original shows above the ground. */}
+          <div className="bigscore">
+            <span className="bigscore__team">{battingTeam?.name}</span>
+            <span className="bigscore__value">
+              {innings ? `${innings.runs}/${innings.wickets}` : "0/0"}
+            </span>
+            <span className="bigscore__overs">
+              {innings ? oversText(innings.balls) : "0.0"} overs
+            </span>
+            <span className="bigscore__batters">
+              {striker && (
+                <span>
+                  {strikerCard?.runs ?? 0} ({strikerCard?.balls ?? 0}){" "}
+                  <b>{striker.name.split(" ").slice(-1)[0]}</b>
+                </span>
+              )}
+              {nonStriker && (
+                <span>
+                  {nonStrikerCard?.runs ?? 0} ({nonStrikerCard?.balls ?? 0}){" "}
+                  <b>{nonStriker.name.split(" ").slice(-1)[0]}</b>
+                </span>
+              )}
+              {bowler && (
+                <span className="muted">
+                  {bowlerCard?.wickets ?? 0}/{bowlerCard?.runs ?? 0}{" "}
+                  <b>{bowler.name.split(" ").slice(-1)[0]}</b>
+                </span>
+              )}
+            </span>
+          </div>
+
           <div style={{ position: "relative" }}>
             <MatchView
               snapshot={snapshot}
@@ -266,7 +351,8 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
               <div className="groundtag">
                 Current Partnership
                 <b>
-                  {partnership} run{partnership === 1 ? "" : "s"} from {partnership * 3} balls
+                  {partnership.runs} run{partnership.runs === 1 ? "" : "s"} from {partnership.balls}{" "}
+                  ball{partnership.balls === 1 ? "" : "s"}
                 </b>
               </div>
             )}
@@ -296,9 +382,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
 
             {/* scorebar */}
             <div className="scorebar">
-              <span className="scorebar__team">
-                {battingTeam?.name.slice(0, 3).toUpperCase() ?? "---"}
-              </span>
+              <span className="scorebar__team">{batCode}</span>
               <span className="scorebar__score">
                 {innings ? `${innings.runs}/${innings.wickets}` : "—"}
               </span>
@@ -368,6 +452,47 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
             )}
             {status && <p className="muted">{status}</p>}
           </div>
+
+          {/*
+            The outcome grid, in the original's layout: the last three overs
+            as coloured ball icons. It is the most recognisable part of its
+            match screen and genuinely useful — you read the shape of an over
+            at a glance instead of scanning commentary.
+          */}
+          <section className="panel overgrid">
+            <div className="overgrid__row overgrid__row--head">
+              <span className="overgrid__cell">Over</span>
+              <span className="overgrid__cell">Bowler</span>
+              <span className="overgrid__cell overgrid__cell--balls">Balls</span>
+              <span className="overgrid__cell overgrid__cell--num">Runs</span>
+            </div>
+            {overRows.map((row) => (
+              <div className="overgrid__row" key={row.over}>
+                <span className="overgrid__cell">
+                  {row.over}
+                  {ordinalSuffix(row.over)}
+                </span>
+                <span className="overgrid__cell">{row.bowler}</span>
+                <span className="overgrid__cell overgrid__cell--balls">
+                  {row.balls.map((b, i) => (
+                    <span
+                      key={i}
+                      className={`ball ball--${ballClass(b)}`}
+                      title={`${b.runs + b.extra_runs} — ${b.commentary}`}
+                    >
+                      {ballLabel(b)}
+                    </span>
+                  ))}
+                </span>
+                <span className="overgrid__cell overgrid__cell--num">{row.runs}</span>
+              </div>
+            ))}
+            {overRows.length === 0 && (
+              <p className="muted" style={{ padding: "0.35rem 0.5rem" }}>
+                The first over is under way.
+              </p>
+            )}
+          </section>
         </div>
 
         {/* ---- tactics + scorecards ---- */}
@@ -611,6 +736,32 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
 }
 
 type Innings = MatchSnapshot["innings"][number];
+
+/** Colour class for a delivery, matching the original's outcome icons. */
+function ballClass(b: BallOutcome): string {
+  if (b.dismissal) return "w";
+  if (b.is_boundary_six) return "six";
+  if (b.is_boundary_four) return "four";
+  if (b.extra) return "extra";
+  if (b.runs > 0) return "run";
+  return "dot";
+}
+
+/** The character shown inside an outcome icon. */
+function ballLabel(b: BallOutcome): string {
+  if (b.dismissal) return "W";
+  if (b.extra) return b.extra === "Wide" ? "wd" : "nb";
+  if (b.is_boundary_six) return "6";
+  if (b.runs > 0) return String(b.runs);
+  return "·";
+}
+
+/** 1st, 2nd, 3rd, 4th, 11th… */
+function ordinalSuffix(n: number): string {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return "th";
+  return ["th", "st", "nd", "rd"][n % 10] ?? "th";
+}
 
 function lastTenRuns(innings: Innings | undefined): number {
   if (!innings) return 0;

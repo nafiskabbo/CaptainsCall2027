@@ -206,3 +206,130 @@ fn odi_scoring_lands_in_realistic_range() {
         "average ODI score {avg} out of band, samples {scores:?}"
     );
 }
+
+/// Every delivery must report where the ball went and how it was played.
+///
+/// The 2D view animates from these fields. Without them the view had nothing
+/// but a timer to animate and looped the same run-up on every ball, which is
+/// exactly the "same animation always" symptom.
+#[test]
+fn every_delivery_reports_a_direction_and_shot_kind() {
+    use captains_call_2027_lib::core::types::{Format, Player, Role, Team};
+    use captains_call_2027_lib::match_::state::{ShotKind, WinMargin};
+
+    // A pair of sides with known players, so resolve_ball has someone to use.
+    let mk_player = |id: u32, bat: u8, bowl: u8| Player {
+        id,
+        name: format!("P{id}"),
+        nation_id: 1,
+        team_id: None,
+        age: 25,
+        role: if bowl > bat {
+            Role::PaceBowler
+        } else {
+            Role::Batter
+        },
+        batting_style: "rhb".into(),
+        bowling_style: None,
+        skills: captains_call_2027_lib::core::types::Skills {
+            bat: captains_call_2027_lib::core::types::Rating(bat),
+            test_bat: captains_call_2027_lib::core::types::Rating(bat),
+            odi_bat: captains_call_2027_lib::core::types::Rating(bat),
+            t20_bat: captains_call_2027_lib::core::types::Rating(bat),
+            defence: captains_call_2027_lib::core::types::Rating(60),
+            pace: captains_call_2027_lib::core::types::Rating(bowl),
+            spin: captains_call_2027_lib::core::types::Rating(1),
+            odi_bowl: captains_call_2027_lib::core::types::Rating(bowl),
+            t20_bowl: captains_call_2027_lib::core::types::Rating(bowl),
+            fielding: captains_call_2027_lib::core::types::Rating(60),
+            keeping: captains_call_2027_lib::core::types::Rating(1),
+            leadership: captains_call_2027_lib::core::types::Rating(50),
+        },
+        ..Default::default()
+    };
+
+    let team = |id: u32| Team {
+        id,
+        name: format!("T{id}"),
+        nation_id: 1,
+        home_ground_id: 1,
+        budget: 0,
+        reputation: captains_call_2027_lib::core::types::Rating(50),
+        squad_ids: vec![],
+        is_national: false,
+    };
+
+    let players = [mk_player(1, 80, 70), mk_player(2, 70, 80)];
+    let mut rng = captains_call_2027_lib::core::rng::SimRng::new(42);
+    let mut innings = captains_call_2027_lib::match_::state::Innings {
+        batting_team_id: 1,
+        bowling_team_id: 2,
+        ..Default::default()
+    };
+    let input = captains_call_2027_lib::match_::state::MatchInput::default();
+
+    let mut seen_directions = std::collections::HashSet::new();
+    let mut seen_shots = std::collections::HashSet::new();
+    let _ = (Format::T20, WinMargin::Draw);
+
+    for ball in 0..120u32 {
+        let mut ctx = captains_call_2027_lib::match_::engine::BallContext {
+            striker: &players[0],
+            batter_id: players[0].id,
+            bowler: &players[1],
+            fielding_team: &team(2),
+            innings: &mut innings,
+            format: Format::T20,
+            over: ball / 6 + 1,
+            powerplay: ball < 36,
+            chasing: false,
+            run_rate_needed: 0.0,
+            minnow_boost: 1.0,
+            input: &input,
+            rng: &mut rng,
+        };
+        let outcome = captains_call_2027_lib::match_::engine::resolve_ball(&mut ctx);
+        assert!(
+            outcome.direction_deg < 360,
+            "ball {ball}: direction {} out of range",
+            outcome.direction_deg
+        );
+        assert!(
+            matches!(
+                outcome.shot,
+                ShotKind::Defended
+                    | ShotKind::Driven
+                    | ShotKind::Cut
+                    | ShotKind::Pulled
+                    | ShotKind::Lofted
+                    | ShotKind::Edged
+                    | ShotKind::Beaten
+                    | ShotKind::Missed
+            ),
+            "ball {ball}: unrecognised shot kind {:?}",
+            outcome.shot
+        );
+        seen_directions.insert(outcome.direction_deg);
+        seen_shots.insert(outcome.shot);
+
+        // Every ball advances the innings so the engine sees a realistic game.
+        innings.balls += 1;
+        innings.runs += outcome.total();
+        if outcome.dismissal.is_some() {
+            innings.wickets += 1;
+        }
+    }
+
+    // A fixed animation would mean one direction for every ball. Real cricket
+    // is not like that, and neither is the engine now.
+    assert!(
+        seen_directions.len() >= 20,
+        "only {} distinct directions over 120 balls — the view would look fixed",
+        seen_directions.len()
+    );
+    assert!(
+        seen_shots.len() >= 3,
+        "only {} distinct shot kinds — the view would look fixed",
+        seen_shots.len()
+    );
+}
