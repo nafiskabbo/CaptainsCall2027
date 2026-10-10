@@ -107,15 +107,16 @@ pub struct PackInfo {
 /// Every database the player can start a career from, default first.
 #[tauri::command]
 pub fn list_db_packs() -> Vec<PackInfo> {
+    let default = crate::world::load_world();
     let mut out = vec![PackInfo {
         key: "default".into(),
         label: "Captain's Call 2027 (fictional)".into(),
         description: "The shipped database: twelve invented nations and their domestic sides."
             .into(),
-        db_version: crate::world::DB_VERSION.to_string(),
-        nations: 0,
-        teams: 0,
-        players: 0,
+        db_version: default.db_version.clone(),
+        nations: default.nations.len() as u32,
+        teams: default.teams.len() as u32,
+        players: default.players.len() as u32,
         real_names: false,
     }];
     for pack in crate::world::PACKS {

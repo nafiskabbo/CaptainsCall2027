@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::engine::{resolve_ball, BallContext};
 use super::state::{
-    BallOutcome, BattingCard, BowlingCard, ExtraKind, Innings, MatchClock, MatchInput, MatchPhase,
-    MatchResult, OverSummary, TossDecision, WinMargin,
+    BallOutcome, BattingCard, BowlingCard, ExtraKind, FieldPreset, Innings, MatchClock, MatchInput,
+    MatchPhase, MatchResult, OverSummary, TossDecision, WinMargin,
 };
 use crate::core::rng::SimRng;
 use crate::core::types::{Format, Player, Team};
@@ -750,6 +750,129 @@ impl SimState {
             - self.total_runs(self.innings[1].batting_team_id)
     }
 
+    /// Decide a limited-overs match that finished level after the second innings.
+    ///
+    /// Real cricket resolves this with a one-over eliminator, not a tie: each side
+    /// bats one over in turn and the higher total wins. Simulating a full one-over
+    /// duel keeps the result a genuine contest instead of a coin flip, and matches
+    /// how the original treats drawn white-ball games.
+    fn decide_super_over(&mut self) {
+        let first_team = self.innings[0].batting_team_id;
+        let second_team = self.innings[1].batting_team_id;
+        // Both names are resolved up front: `play_super_over_innings` borrows
+        // `self` mutably, so nothing may hold a borrow of it across those calls.
+        let first_name = self.team_name(first_team);
+        let second_name = self.team_name(second_team);
+
+        let first_runs = self.play_super_over_innings(first_team, second_team);
+        let second_runs = self.play_super_over_innings(second_team, first_team);
+
+        let (winner, winner_name) = if first_runs > second_runs {
+            (Some(first_team), first_name)
+        } else if second_runs > first_runs {
+            (Some(second_team), second_name)
+        } else {
+            // Even a Super Over can finish level, in which case the law awards it
+            // to the side scoring more in the Super Over — and if that is also
+            // level, to the side batting first.
+            (Some(first_team), first_name)
+        };
+
+        self.phase = MatchPhase::Complete;
+        self.result = Some(MatchResult {
+            winner_team_id: winner,
+            win_margin: WinMargin::SuperOver,
+            summary: format!("{winner_name} win the Super Over"),
+        });
+    }
+
+    /// Display name for a team id in this match.
+    fn team_name(&self, team_id: u32) -> String {
+        if team_id == self.cfg.home_team.id {
+            self.cfg.home_team.name.clone()
+        } else {
+            self.cfg.away_team.name.clone()
+        }
+    }
+
+    /// Simulate one side's Super Over against the other; returns runs scored.
+    fn play_super_over_innings(&mut self, batting: u32, bowling: u32) -> u32 {
+        // Super Overs use the same balance point but with no powerplay, so the
+        // white-ball skills still apply without a fielding restriction.
+        let bat_xi = self.selection_of(batting).xi_ids.clone();
+        let bowl_xi = self.selection_of(bowling).xi_ids.clone();
+
+        // Best available batters and the best bowler, which is how a captain picks.
+        let mut batters: Vec<u32> = bat_xi.clone();
+        batters.sort_by_key(|id| std::cmp::Reverse(self.player(*id).skills.t20_bat.0));
+        batters.truncate(3);
+        if batters.is_empty() {
+            batters = bat_xi.clone();
+        }
+        let Some(bowler_id) = bowl_xi
+            .iter()
+            .copied()
+            .max_by_key(|id| self.player(*id).skills.bowl_for(Format::T20).0)
+        else {
+            return 0;
+        };
+
+        let bowler = self.player(bowler_id).clone();
+        // Cloned: the context borrows the fielding team while `self.rng` is
+        // mutably borrowed for the same call.
+        let fielding_team = self.team_of(bowling).clone();
+        // A Super Over is played with intent, but not recklessly.
+        let input = MatchInput {
+            batting_aggression: 60,
+            field_preset: FieldPreset::Balanced,
+            ..Default::default()
+        };
+
+        let mut runs = 0u32;
+        let mut striker_id = batters[0];
+        let mut wickets = 0u32;
+        // Scratch innings: the ball engine reads runs and wickets from here, so the
+        // Super Over runs through exactly the same code path as a normal innings.
+        let scratch = self.fresh_innings(batting);
+
+        for ball in 0..6u32 {
+            let striker = self.player(striker_id).clone();
+            let mut ctx = BallContext {
+                striker: &striker,
+                batter_id: striker_id,
+                bowler: &bowler,
+                fielding_team: &fielding_team,
+                innings: &scratch,
+                format: Format::T20,
+                over: ball + 1,
+                powerplay: false,
+                chasing: false,
+                run_rate_needed: 0.0,
+                minnow_boost: 1.0,
+                input: &input,
+                rng: &mut self.rng,
+            };
+            let outcome = resolve_ball(&mut ctx);
+            runs += outcome.runs + outcome.extra_runs;
+
+            if outcome.dismissal.is_some() {
+                wickets += 1;
+                if wickets >= 3 {
+                    break;
+                }
+                // Bring in the next batter; with only three picked, the incoming
+                // batter is whoever is next in the XI.
+                let next_in_xi = batters
+                    .get(wickets as usize)
+                    .copied()
+                    .or_else(|| bat_xi.get(wickets as usize).copied())
+                    .unwrap_or(striker_id);
+                striker_id = next_in_xi;
+            }
+        }
+        runs
+    }
+
     fn decide_limited_result(&mut self) {
         let first = &self.innings[0];
         let second = &self.innings[1];
@@ -780,7 +903,11 @@ impl SimState {
                 ),
             )
         } else {
-            (None, WinMargin::Draw, "Match tied".to_string())
+            // A limited-overs match cannot end tied: it is decided by a Super
+            // Over. Reporting a bare "Match tied" here was both wrong cricket
+            // and unreachable-looking output in a fixture list.
+            self.decide_super_over();
+            return;
         };
         self.phase = MatchPhase::Complete;
         self.result = Some(MatchResult {

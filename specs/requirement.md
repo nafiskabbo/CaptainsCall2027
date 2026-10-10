@@ -94,7 +94,7 @@ Decided 2026-10-09: MIT for code; **fictionalised defaults** in the shipped DB; 
 - DR-1 Ship DB = 2027-style season structure (squads, transfers, career stats, records, tour schedule, grounds) with **fictional player names and generic competition/team names** (e.g. "Indian T20 League", not "IPL"; city-based fictional franchises, not real clubs). No real league/team names, logos, or likenesses in the default ship.
 - DR-2 Source format: `data/players/*.json`, `data/teams/*.json`, `data/competitions/*.json`, `data/grounds/*.json`, JSON Schema in `data/schema/`.
 - DR-3 No 2014 defaults. Any legacy import must be explicitly labelled and migrated.
-- DR-4 Real-names packs are **community mods, never bundled**: installed via the DB channel / local-file import (see §5). Pack publishers own their legal risk; app shows a "third-party content" notice on install.
+- DR-4 Real-names content is **opt-in, never the default**. The game boots into the fictional DB; real-names data ships only as a selectable *test pack* (`real-international`), compiled into the binary so it works offline, and is labelled third-party in the UI with the right-of-publicity caveat. Externally sourced packs are installed via the DB channel / local-file import (see §5) and their publishers own their legal risk.
 - DR-5 Name/opt-out: player-name blocklist respected in all first-party content; takedown PR process for removals.
 - DR-6 Why not "weird misspellings": deliberately misspelled real names are still identifiable (same publicity/trademark risk) while looking cheap and breaking search. Either fully fictional (default) or accurate + opt-out (mod). No middle ground.
 

@@ -233,4 +233,6 @@ pub enum WinMargin {
     Wickets(u8),
     Innings(u32),
     Draw,
+    /// Decided by a one-over eliminator after the scores finished level.
+    SuperOver,
 }

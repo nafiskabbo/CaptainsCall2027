@@ -201,6 +201,80 @@ exist. Concretely:
    `bun run test:ui`.
 5. Career/mutating commands must surface failure to the user, not swallow it.
 
+## PLAYABILITY + PARITY AUDIT — international cricket, teams, sound (2026-10-10)
+
+Follow-up to the audit above, driven by "the match is not working at all" and
+"there are no sound effects". The engine looked healthy in tests; playing it
+found four real bugs, and two of them made the headline features unusable.
+
+**The World Cup was a dead end.** Semi-finals and the final were scheduled with
+`home_id = 0` and never filled in, so they could be neither played nor
+simulated. An international season therefore *could never complete* — the
+calendar ran to day 122 with 3 fixtures permanently unplayable. Knockout slots
+are now seeded from the completed group tables (`KnockoutPairings`), the final
+is filled from the semi-final winners, and the two semi-finals are genuinely
+different ties.
+
+**Fast-forward skipped the player's own matches.** `advance_day` jumped to the
+next day with *any* unplayed fixture, sailing past the player's own group games
+— which only the player can play. Their groups never resolved, so the bracket
+never seeded. It now stops at the player's next fixture.
+
+**Chases ran on past the target.** Innings only ended on overs/all-out/
+declaration, never on reaching the target: a 75 target finished on 158 in 20
+overs. A chase now closes on the ball that passes the target.
+
+**White-ball matches could be "tied".** Level scores returned a null winner.
+That is not a possible T20/ODI result; it is now decided by a simulated Super
+Over (`WinMargin::SuperOver`). Test draws are untouched — those are real.
+
+**`quit_to_menu` was missing.** "Main Menu" only cleared React state, leaving
+the engine's career slot populated, which blocked changing the database and
+starting a new career. The app was wedged after any match.
+
+Also fixed: the database picker reported "0 nations · 0 teams · 0 players" for
+the default pack because the counts were hardcoded placeholders.
+
+### Real-names international database
+
+`tools/generate-intl-db.mjs` builds the ten ICC full members (India, Australia,
+England, South Africa, New Zealand, Pakistan, West Indies, Sri Lanka,
+Bangladesh, Afghanistan) — 148 players, 60 real grounds, World Test
+Championship / World Cup / World Twenty20.
+
+Packaged as a **selectable pack**, not the shipped default, so the fictional DB
+stays what the game boots into and §4 DR-1 plus the trademark validator keep
+passing. Real player names carry right-of-publicity risk, so the pack is
+labelled a test database in the UI and is never first-party content. Each pack
+pins its own `db_version`, so saves from different databases cannot mix.
+
+The generator's self-check caught three genuine data defects while writing the
+squads: duplicated entries, and a real cross-nation name collision (Rashid
+Khan is an Afghan international who has also played for Pakistan). Name
+uniqueness is therefore per nation, not global.
+
+### Sound
+
+No audio existed. Every cue is now **synthesised** with the Web Audio API —
+filtered noise bursts and enveloped tones for the bat, the glove, timber and
+the crowd — so there are no binary assets, nothing to license, and it works
+offline. Twelve cues; the cue per delivery is derived from the engine's
+`BallOutcome`, not the commentary text, so a wicket always sounds like a
+wicket (and correctly wins over a boundary when both coincide).
+
+Every host interaction is guarded. That guard was not theoretical: the UI e2e
+suite caught a **boot-crashing** bug where `addEventListener` on a jsdom window
+under Bun throws. Audio failing must never be able to take the game down.
+
+### Verification
+
+Every fix above is covered by a regression test **confirmed to fail against the
+previous behaviour** (e.g. reverting the chase fix makes the test report
+`75 -> 158 in 120 balls`). 112 Rust tests, 61 UI e2e checks, clippy and fmt
+clean. A full international season — pick India, play the group stage, reach
+the semi-final, finish the season, read career records — was played end to end
+against the real engine.
+
 ## AI workflow rules
 
 1. One plan box = one branch/commit (`m1-1-ball-model` etc.).
