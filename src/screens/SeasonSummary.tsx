@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../tools/api";
 import type { CareerView, Player, World } from "../types";
+import { Button } from "../ui";
 
 interface Props {
   world: World;
@@ -140,12 +141,8 @@ export default function SeasonSummary({ world, career, onOffSeason, onSave }: Pr
       </section>
 
       <section className="panel" style={{ display: "flex", gap: "0.5rem" }}>
-        <button className="btn btn--primary" onClick={onOffSeason}>
-          Continue to off-season
-        </button>
-        <button className="btn" onClick={onSave}>
-          Save career
-        </button>
+        <Button onClick={onOffSeason}>Continue to off-season</Button>
+        <Button onClick={onSave}>Save career</Button>
       </section>
     </div>
   );

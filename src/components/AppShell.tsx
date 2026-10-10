@@ -1,3 +1,6 @@
+//! App chrome: blue-gradient top bar (clock / title / flags), the original's
+//! icon sidebar, the green field backdrop and the bottom action bar.
+
 import type { ReactNode } from "react";
 import { Icon } from "../ui";
 
@@ -21,6 +24,29 @@ interface Props {
   quickSearch?: ReactNode;
   actionBar: ReactNode;
   children: ReactNode;
+}
+
+/**
+ * A single sidebar row: icon + label on a bevelled slate strip, with the
+ * active row raised. Kept here (not in the UI kit) because it is shell chrome
+ * rather than a content primitive.
+ */
+export function NavRow({ item }: { item: SidebarItem }) {
+  return (
+    <button
+      type="button"
+      className={`navrow ${item.active ? "navrow--active" : ""}`}
+      onClick={item.onClick}
+      aria-current={item.active ? "page" : undefined}
+      title={item.label}
+    >
+      <span className="navrow__icon" aria-hidden="true">
+        <Icon name={item.icon} size={15} />
+      </span>
+      <span className="navrow__label">{item.label}</span>
+      {item.badge ? <span className="navrow__badge">{item.badge}</span> : null}
+    </button>
+  );
 }
 
 /**
@@ -59,19 +85,7 @@ export default function AppShell({
       <nav className="sidebar" aria-label="Main navigation">
         <div className="sidebar__nav">
           {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`navrow ${item.active ? "navrow--active" : ""}`}
-              onClick={item.onClick}
-              aria-current={item.active ? "page" : undefined}
-            >
-              <span className="navrow__icon" aria-hidden="true">
-                <Icon name={item.icon} size={15} />
-              </span>
-              <span className="navrow__label">{item.label}</span>
-              {item.badge ? <span className="navrow__badge">{item.badge}</span> : null}
-            </button>
+            <NavRow key={item.id} item={item} />
           ))}
         </div>
 

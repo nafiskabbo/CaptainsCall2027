@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../tools/api";
 import type { Fixture, Player, World } from "../types";
+import { Button } from "../ui";
 
 interface Props {
   world: World;
@@ -133,12 +134,8 @@ export default function SelectionScreen({
             </p>
           </div>
           <div className="selection__headactions">
-            <button className="btn" onClick={autoPick} disabled={busy}>
-              Auto-pick
-            </button>
-            <button className="btn btn--ghost" onClick={onCancel}>
-              Close
-            </button>
+            <Button onClick={autoPick} disabled={busy}>Auto-pick</Button>
+            <Button variant="ghost" onClick={onCancel}>Close</Button>
           </div>
         </div>
 
@@ -224,14 +221,7 @@ export default function SelectionScreen({
           <span className="muted">
             You need exactly 11 players, all from {team?.name ?? "your squad"}.
           </span>
-          <button
-            className="btn btn--primary"
-            style={{ width: "auto", padding: "0.5rem 1.4rem" }}
-            onClick={save}
-            disabled={busy || xi.length !== 11}
-          >
-            {busy ? "Saving…" : "Confirm XI"}
-          </button>
+          <Button style={{ width: "auto", padding: "0.5rem 1.4rem" }} onClick={save} disabled={busy || xi.length !== 11}>{busy ? "Saving…" : "Confirm XI"}</Button>
         </div>
         {error && <p className="error">{error}</p>}
       </section>

@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../tools/api";
 import type { CareerView, Player, TrainingFocus } from "../types";
+import { Button } from "../ui";
 
 interface Props {
   career: CareerView;
@@ -98,9 +99,7 @@ export default function TrainingScreen({ career, onSaved }: Props) {
         <p className="muted">
           {FOCUSES.find((f) => f.value === focus)?.blurb}
         </p>
-        <button className="btn btn--primary" onClick={save} disabled={busy} style={{ width: "auto", marginTop: "0.5rem" }}>
-          {busy ? "Saving…" : "Set focus"}
-        </button>
+        <Button onClick={save} disabled={busy} style={{ width: "auto", marginTop: "0.5rem" }}>{busy ? "Saving…" : "Set focus"}</Button>
       </section>
 
       <section className="panel">

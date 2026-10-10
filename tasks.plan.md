@@ -140,6 +140,67 @@ Types: `World`, `Nation`, `Team`, `Player`, `Ground`, `Competition`,
 - [x] P7.2 macOS release bundle verified (builds, launches, 17MiB app / 5MiB dmg); CI matrix builds Win/Mac/Linux
 - [x] P7.3 Tagged `v0.1-playable` — G2/G3 roadmap continues in `tasks.plan.md`
 
+## PLAYABILITY AUDIT — end-to-end UI + engine verification (2026-10-10)
+
+The career screen rendered fixtures but no match could be started, and most
+action-bar buttons did nothing. Both were real bugs, not engine gaps, and both
+are now covered by automated regression tests that drive the **real** UI against
+the **real** engine.
+
+**Blocking: the game could not be played at all.** `CareerView` serializes with
+`rename_all = "camelCase"` while `src/types.ts` declared `next_fixture_id` /
+`season_complete` in snake_case. Both were `undefined` at runtime, so
+`undefined !== null` let the "Your next match" panel render, but `NextMatchCard`
+found no fixture and bailed out — no Play button, no Select XI. The same mismatch
+killed the season-complete panel and therefore "Go to off-season".
+
+**Dead buttons** (each had no `onClick` or the wrong handler): `««`, `Fast
+Forward` and `»»` all called `advanceDay`; `Continue` had no handler at all;
+match `Main Screen` and `Options` did nothing; `Autoplay` could not be stopped;
+the career-sidebar `Fixtures` row and the match/off-season sidebar rows did
+nothing; `Save` gave no feedback anywhere. The field-setting select wrote
+straight into the React state object, so the field preset never re-rendered. The
+training screen always displayed "Balanced", ignoring the saved focus.
+
+**Engine additions:** `advance_one_day` (steps one day, simulates it),
+`advance_to_my_next_match` (skips to the player's fixture),
+`start_with_options` (first season + form reset), and directory-based
+`saves_in` / `load_settings_in` helpers so harnesses and tests can point the
+store at a temp dir instead of an `AppHandle`.
+
+**How it is verified now** (this is the part that keeps it working):
+
+- `src-tauri/examples/e2e.rs` — the real command surface over HTTP, mirroring
+  `lib.rs`'s handler list 1:1. Lives under `examples/`, never ships in the bundle.
+- `e2e.html` + `src/mock-e2e.ts` — the browser transport shim (same contract).
+- `npm run test:ui` (`tools/ui-e2e.mjs`) — drives the **compiled React app** in
+  jsdom with every `invoke` routed to the real engine. 49 checks across the full
+  player journey: setup → career controls → every tab → squad selection → live
+  match (ball / over / to result / export / autoplay) → main screen → continue →
+  a complete season rollover. Fails on React errors and unhandled rejections.
+- `npm run test:contract` (`tools/contract-check.mjs`) — diffs every
+  `src/types.ts` interface against live engine JSON. Caught two further latent
+  mismatches the eye missed: `training_focus` and the missing
+  `CareerState.records` shape.
+
+Status: 104 Rust tests green, `cargo fmt`/`clippy -D warnings` clean, contract
+check green, UI e2e green, release bundle rebuilt and launched.
+
+## STANDING CHECKLIST — "a button that does nothing is a bug"
+
+Before calling any screen done, every control must either do something or not
+exist. Concretely:
+
+1. No `<button>` without an `onClick` / `disabled` reason.
+2. No control whose state is never read back (a select that writes into a React
+   state object, or a screen that hardcodes a default instead of reading the
+   saved value).
+3. Every field the UI reads must exist in the engine's JSON — enforced by
+   `npm run test:contract`.
+4. Every screen reachable, and reachable from a working control — enforced by
+   `npm run test:ui`.
+5. Career/mutating commands must surface failure to the user, not swallow it.
+
 ## AI workflow rules
 
 1. One plan box = one branch/commit (`m1-1-ball-model` etc.).

@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../tools/api";
+import { Button } from "../ui";
 
 type UpdateStatus =
   | { kind: "UpToDate"; installed: string }
@@ -137,9 +138,7 @@ export default function UpdatePanel() {
             value={manifestPath}
             onChange={(e) => setManifestPath(e.target.value)}
           />
-          <button className="btn" onClick={checkLocal} disabled={busy}>
-            Check
-          </button>
+          <Button onClick={checkLocal} disabled={busy}>Check</Button>
         </div>
       </div>
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../tools/api";
 import type { CareerView, SaveSummary, World, Player } from "../types";
 import TrainingScreen from "./TrainingScreen";
+import { Button } from "../ui";
 
 interface Props {
   world: World;
@@ -120,9 +121,7 @@ export default function OffSeasonScreen({
           announced, the academy replenishes squads and a fresh fixture list is drawn.
         </p>
         <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.6rem", flexWrap: "wrap" }}>
-          <button className="btn btn--primary" onClick={onNewSeason} disabled={busy}>
-            Begin season {career.state.season + 1}
-          </button>
+          <Button onClick={onNewSeason} disabled={busy}>Begin season {career.state.season + 1}</Button>
           <button
             className="btn"
             onClick={() => {
@@ -132,9 +131,7 @@ export default function OffSeasonScreen({
           >
             Save
           </button>
-          <button className="btn btn--ghost" onClick={onExit}>
-            Main menu
-          </button>
+          <Button variant="ghost" onClick={onExit}>Main menu</Button>
         </div>
       </section>
 

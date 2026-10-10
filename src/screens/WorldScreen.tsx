@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../tools/api";
 import type { Player, Team, World } from "../types";
 import UpdatePanel from "./UpdatePanel";
+import { Button } from "../ui";
 
 interface Props {
   world: World;
@@ -152,13 +153,7 @@ export default function WorldScreen({ world, onStartCareer }: Props) {
         </div>
 
         <div style={{ marginTop: "0.8rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button
-            className="btn btn--primary"
-            onClick={start}
-            disabled={busy || !teamId || (competitions.length === 0 && !isNational)}
-          >
-            {busy ? "Starting…" : "Begin Season"}
-          </button>
+          <Button onClick={start} disabled={busy || !teamId || (competitions.length === 0 && !isNational)}>{busy ? "Starting…" : "Begin Season"}</Button>
           <span className="muted">
             {competitions.length > 0
               ? `Enters ${competitions.map((c) => c.name).join(", ")}`

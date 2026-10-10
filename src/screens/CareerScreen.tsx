@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../tools/api";
 import type { CareerView, MatchSnapshot, SaveSummary, World } from "../types";
-import { Panel, Select, Tabs } from "../ui";
+import { Button, Panel, Select, Tabs } from "../ui";
 import SelectionScreen from "./SelectionScreen";
 
 interface Props {
@@ -144,13 +144,7 @@ export default function CareerScreen({
                   table.findIndex((r) => r.team_id === myTeamId) + 1
                 }.`}
           </p>
-          <button
-            className="btn btn--primary"
-            style={{ marginTop: "0.5rem" }}
-            onClick={onOffSeason}
-          >
-            Go to off-season
-          </button>
+          <Button style={{ marginTop: "0.5rem" }} onClick={onOffSeason}>Go to off-season</Button>
         </section>
       )}
 
@@ -446,12 +440,8 @@ function NextMatchCard({
           {teamName(world, opponent)}
         </div>
       </div>
-      <button className="btn" onClick={onSelect} disabled={busy}>
-        Select XI
-      </button>
-      <button className="btn btn--primary" onClick={onPlay} disabled={busy}>
-        Play match
-      </button>
+      <Button onClick={onSelect} disabled={busy}>Select XI</Button>
+      <Button onClick={onPlay} disabled={busy}>Play match</Button>
     </div>
   );
 }

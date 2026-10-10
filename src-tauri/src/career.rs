@@ -56,12 +56,7 @@ impl Career {
     /// `first_season` is the season number the career opens on (1 = the 2027
     /// season); `reset_form` zeroes form/fitness/morale to a clean baseline,
     /// which is the "Reset player form?" setup option.
-    pub fn start(
-        world: &World,
-        team_id: u32,
-        name: String,
-        seed: u64,
-    ) -> Result<Self, String> {
+    pub fn start(world: &World, team_id: u32, name: String, seed: u64) -> Result<Self, String> {
         Self::start_with_options(world, team_id, name, seed, 1, false)
     }
 

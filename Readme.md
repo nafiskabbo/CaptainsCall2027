@@ -108,3 +108,32 @@ See `tasks.plan.md`.
 ## License
 
 MIT — see `LICENSE`. Original game assets/names/stats belong to their owners; our DB uses fictional player names only (see `data/README.md`).
+
+## Verifying it works
+
+Three layers, all runnable locally:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml   # 104 engine + integration tests
+npm run test:contract                            # types.ts ↔ engine JSON contract
+npm run test:ui                                  # 49 checks over the real UI
+npm run tauri:dev                                # or: npm run tauri:build
+```
+
+`npm run test:ui` is the interesting one: it compiles the real React app, runs it
+in jsdom, and routes every Tauri `invoke` to the real Rust engine (see
+`src-tauri/examples/e2e.rs`, `e2e.html` and `tools/ui-e2e.mjs`). It walks the
+entire player journey — start a career, use every career control and tab, pick
+an XI, play a match ball by ball, export a scorecard, toggle autoplay, return to
+the career screen and roll a full season into the off-season — and fails on
+React errors, unhandled rejections, or any control that silently does nothing.
+
+### Shared UI kit
+
+`src/ui/index.tsx` holds the primitives every screen composes: `Button` (blue /
+gray / danger / ghost / continue-pill, `sm`), `Panel` (beveled head strip with an
+optional gold section label), `Tabs`, `Table`, `Select` / `TextField` /
+`Checkbox` (including the original's label-left setup rows), `Stat`, `Meter`,
+`Badge`, `ConfidenceBlocks`, `Grid`, `Stack`, `Fade`, and the inline SVG `Icon`
+set. Buttons and textures are declared once there, so the chrome stays
+consistent and screens never re-style raw elements.

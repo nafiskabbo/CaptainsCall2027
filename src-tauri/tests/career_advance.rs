@@ -60,8 +60,11 @@ fn advance_one_day_simulates_that_day_s_fixtures() {
         .state
         .fixtures
         .iter()
-        .filter(|f| f.day == first
-            && (f.home_id == career.state.player_team_id || f.away_id == career.state.player_team_id))
+        .filter(|f| {
+            f.day == first
+                && (f.home_id == career.state.player_team_id
+                    || f.away_id == career.state.player_team_id)
+        })
         .filter(|f| f.result.is_none())
         .count();
     career.advance_one_day(&world);
@@ -69,11 +72,17 @@ fn advance_one_day_simulates_that_day_s_fixtures() {
         .state
         .fixtures
         .iter()
-        .filter(|f| f.day == first
-            && (f.home_id == career.state.player_team_id || f.away_id == career.state.player_team_id))
+        .filter(|f| {
+            f.day == first
+                && (f.home_id == career.state.player_team_id
+                    || f.away_id == career.state.player_team_id)
+        })
         .filter(|f| f.result.is_none())
         .count();
-    assert_eq!(mine_before, mine_after, "the player's own match must not be auto-played");
+    assert_eq!(
+        mine_before, mine_after,
+        "the player's own match must not be auto-played"
+    );
 }
 
 #[test]
@@ -111,10 +120,16 @@ fn skip_to_my_match_lands_on_my_fixture_day() {
         .state
         .fixtures
         .iter()
-        .find(|f| f.day == target
-            && (f.home_id == career.state.player_team_id || f.away_id == career.state.player_team_id))
+        .find(|f| {
+            f.day == target
+                && (f.home_id == career.state.player_team_id
+                    || f.away_id == career.state.player_team_id)
+        })
         .expect("the player's fixture is on that day");
-    assert!(mine.result.is_none(), "the player's match must still be playable");
+    assert!(
+        mine.result.is_none(),
+        "the player's match must still be playable"
+    );
 }
 
 #[test]
@@ -132,7 +147,13 @@ fn skip_to_my_match_simulates_the_rounds_between() {
         .count();
     career.advance_to_my_next_match(&world);
     assert!(
-        career.state.fixtures.iter().filter(|f| f.result.is_some()).count() >= progressed,
+        career
+            .state
+            .fixtures
+            .iter()
+            .filter(|f| f.result.is_some())
+            .count()
+            >= progressed,
         "skipping forward must not un-simulate earlier rounds"
     );
 }
@@ -153,6 +174,9 @@ fn fast_forward_is_idempotent_when_the_season_is_over() {
     }
     let day = career.state.season_day;
     career.advance_to_my_next_match(&world);
-    assert_eq!(career.state.season_day, day, "nothing left must not move the clock");
+    assert_eq!(
+        career.state.season_day, day,
+        "nothing left must not move the clock"
+    );
     assert!(career.season_complete());
 }

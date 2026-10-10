@@ -24,14 +24,20 @@ use captains_call_2027_lib::world::{load_world, DB_VERSION};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let addr = args.get(1).cloned().unwrap_or_else(|| "127.0.0.1:8787".into());
+    let addr = args
+        .get(1)
+        .cloned()
+        .unwrap_or_else(|| "127.0.0.1:8787".into());
     let data_dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "target/e2e".into()));
     let _ = std::fs::remove_dir_all(&data_dir);
     let _ = std::fs::create_dir_all(&data_dir);
     std::env::set_var("CC_E2E_DIR", &data_dir);
 
     let listener = std::net::TcpListener::bind(&addr).expect("bind");
-    eprintln!("[e2e] listening on http://{addr} (data: {})", data_dir.display());
+    eprintln!(
+        "[e2e] listening on http://{addr} (data: {})",
+        data_dir.display()
+    );
 
     for stream in listener.incoming() {
         let Ok(mut stream) = stream else { continue };
@@ -82,13 +88,17 @@ struct CareerHandle(std::sync::MutexGuard<'static, Option<Career>>);
 impl std::ops::Deref for CareerHandle {
     type Target = Career;
     fn deref(&self) -> &Career {
-        self.0.as_ref().expect("career checked before locking handle")
+        self.0
+            .as_ref()
+            .expect("career checked before locking handle")
     }
 }
 
 impl std::ops::DerefMut for CareerHandle {
     fn deref_mut(&mut self) -> &mut Career {
-        self.0.as_mut().expect("career checked before locking handle")
+        self.0
+            .as_mut()
+            .expect("career checked before locking handle")
     }
 }
 
@@ -116,7 +126,9 @@ fn read_request(stream: &mut std::net::TcpStream) -> Option<HttpRequest> {
     let mut buf = Vec::with_capacity(8192);
     let mut chunk = [0u8; 8192];
     loop {
-        let Ok(n) = stream.read(&mut chunk) else { return None };
+        let Ok(n) = stream.read(&mut chunk) else {
+            return None;
+        };
         if n == 0 {
             return None;
         }
@@ -133,7 +145,9 @@ fn read_request(stream: &mut std::net::TcpStream) -> Option<HttpRequest> {
                 .unwrap_or(0);
             let mut body = buf[pos + 4..].to_vec();
             while body.len() < content_length {
-                let Ok(n) = stream.read(&mut chunk) else { break };
+                let Ok(n) = stream.read(&mut chunk) else {
+                    break;
+                };
                 if n == 0 {
                     break;
                 }
@@ -179,7 +193,9 @@ fn arg_str(args: &serde_json::Value, key: &str) -> Result<String, String> {
 }
 
 fn arg_u32(args: &serde_json::Value, key: &str) -> Result<u32, String> {
-    let v = args.get(key).ok_or_else(|| format!("missing number arg `{key}`"))?;
+    let v = args
+        .get(key)
+        .ok_or_else(|| format!("missing number arg `{key}`"))?;
     v.as_u64()
         .or_else(|| v.as_f64().map(|f| f as u64))
         .map(|n| n as u32)
@@ -187,14 +203,18 @@ fn arg_u32(args: &serde_json::Value, key: &str) -> Result<u32, String> {
 }
 
 fn arg_u64(args: &serde_json::Value, key: &str) -> Result<u64, String> {
-    let v = args.get(key).ok_or_else(|| format!("missing number arg `{key}`"))?;
+    let v = args
+        .get(key)
+        .ok_or_else(|| format!("missing number arg `{key}`"))?;
     v.as_u64()
         .or_else(|| v.as_f64().map(|f| f as u64))
         .ok_or_else(|| format!("arg `{key}` is not a number"))
 }
 
 fn arg_i64(args: &serde_json::Value, key: &str) -> Result<i64, String> {
-    let v = args.get(key).ok_or_else(|| format!("missing number arg `{key}`"))?;
+    let v = args
+        .get(key)
+        .ok_or_else(|| format!("missing number arg `{key}`"))?;
     v.as_i64()
         .or_else(|| v.as_f64().map(|f| f as i64))
         .ok_or_else(|| format!("arg `{key}` is not a number"))
@@ -206,7 +226,10 @@ fn arg_bool(args: &serde_json::Value, key: &str) -> Result<bool, String> {
         .ok_or_else(|| format!("missing bool arg `{key}`"))
 }
 
-fn arg_json<T: serde::de::DeserializeOwned>(args: &serde_json::Value, key: &str) -> Result<T, String> {
+fn arg_json<T: serde::de::DeserializeOwned>(
+    args: &serde_json::Value,
+    key: &str,
+) -> Result<T, String> {
     args.get(key)
         .cloned()
         .ok_or_else(|| format!("missing object arg `{key}`"))
@@ -259,31 +282,26 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 .get("resetForm")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let career = Career::start_with_options(
-                world(),
-                team_id,
-                name,
-                seed,
-                first_season,
-                reset_form,
-            )?;
+            let career =
+                Career::start_with_options(world(), team_id, name, seed, first_season, reset_form)?;
             let view = captains_call_2027_lib::commands::build_view(&career, world());
             *careers().lock().map_err(|e| e.to_string())? = Some(career);
             Ok(serde_json::json!(view))
         }
         "get_career" => {
             let career = career()?;
-            Ok(serde_json::json!(captains_call_2027_lib::commands::build_view(
-                &career, world()
-            )))
+            Ok(serde_json::json!(
+                captains_call_2027_lib::commands::build_view(&career, world())
+            ))
         }
         "save_career" => {
             let conn = state().saves_in(&dir)?;
             let career = career()?;
-            Ok(serde_json::json!(
-                captains_call_2027_lib::db::save(&conn, &career.state)
-                    .map_err(|e| e.to_string())?
-            ))
+            Ok(serde_json::json!(captains_call_2027_lib::db::save(
+                &conn,
+                &career.state
+            )
+            .map_err(|e| e.to_string())?))
         }
         "list_saves" => {
             let conn = state().saves_in(&dir)?;
@@ -332,23 +350,23 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
         "advance_day" => {
             let mut career = career()?;
             career.advance_day(world());
-            Ok(serde_json::json!(captains_call_2027_lib::commands::build_view(
-                &career, world()
-            )))
+            Ok(serde_json::json!(
+                captains_call_2027_lib::commands::build_view(&career, world())
+            ))
         }
         "advance_one_day" => {
             let mut career = career()?;
             career.advance_one_day(world());
-            Ok(serde_json::json!(captains_call_2027_lib::commands::build_view(
-                &career, world()
-            )))
+            Ok(serde_json::json!(
+                captains_call_2027_lib::commands::build_view(&career, world())
+            ))
         }
         "advance_to_my_match" => {
             let mut career = career()?;
             career.advance_to_my_next_match(world());
-            Ok(serde_json::json!(captains_call_2027_lib::commands::build_view(
-                &career, world()
-            )))
+            Ok(serde_json::json!(
+                captains_call_2027_lib::commands::build_view(&career, world())
+            ))
         }
         "start_new_season" => {
             let mut career = career()?;
@@ -378,9 +396,9 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                     },
                 );
             }
-            Ok(serde_json::json!(captains_call_2027_lib::commands::build_view(
-                &career, world()
-            )))
+            Ok(serde_json::json!(
+                captains_call_2027_lib::commands::build_view(&career, world())
+            ))
         }
         "get_transfer_pool" => {
             let career = career()?;
@@ -424,10 +442,8 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 outcome,
                 captains_call_2027_lib::core::transfers::BidOutcome::Accepted { .. }
             ) {
-                let wage_bill = captains_call_2027_lib::core::transfers::wage_bill(
-                    &career.players,
-                    team_id,
-                );
+                let wage_bill =
+                    captains_call_2027_lib::core::transfers::wage_bill(&career.players, team_id);
                 career.state.players = career.players.clone();
                 career.state.budget = Some((budget as i64 - wage_bill as i64).max(0));
                 let name = listing.name.clone();
@@ -445,10 +461,8 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let player_id = arg_u32(args, "playerId")?;
             let mut career = career()?;
             let team_id = career.state.player_team_id;
-            let before = captains_call_2027_lib::core::transfers::squad_size(
-                &career.players,
-                team_id,
-            );
+            let before =
+                captains_call_2027_lib::core::transfers::squad_size(&career.players, team_id);
             if before <= 11 {
                 return Err("you cannot reduce your squad below a full XI".into());
             }
@@ -471,10 +485,8 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                     .map(|t| t.budget)
                     .unwrap_or(1_000_000)
             });
-            let wage_bill = captains_call_2027_lib::core::transfers::wage_bill(
-                &career.players,
-                team_id,
-            );
+            let wage_bill =
+                captains_call_2027_lib::core::transfers::wage_bill(&career.players, team_id);
             let squad_size =
                 captains_call_2027_lib::core::transfers::squad_size(&career.players, team_id);
             Ok(serde_json::json!({
@@ -487,9 +499,9 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             let focus = arg_json::<TrainingFocus>(args, "focus")?;
             let mut career = career()?;
             career.state.training_focus = focus;
-            Ok(serde_json::json!(captains_call_2027_lib::commands::build_view(
-                &career, world()
-            )))
+            Ok(serde_json::json!(
+                captains_call_2027_lib::commands::build_view(&career, world())
+            ))
         }
         "get_update_state" => Ok(update_view(
             &captains_call_2027_lib::commands::load_settings_in(&dir),
@@ -559,7 +571,9 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
         }
         "get_match" => {
             let career = career().ok();
-            Ok(serde_json::json!(career.as_deref().and_then(|c| c.live_snapshot())))
+            Ok(serde_json::json!(career
+                .as_deref()
+                .and_then(|c| c.live_snapshot())))
         }
         "set_match_input" => {
             let input = arg_json(args, "input")?;
@@ -586,9 +600,8 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
                 .map(|l| l.snapshot())
                 .or_else(|| career.last_snapshot.clone())
                 .ok_or("no match has been played")?;
-            let html = captains_call_2027_lib::commands::almanack::scorecard_html(
-                &snapshot, world(),
-            );
+            let html =
+                captains_call_2027_lib::commands::almanack::scorecard_html(&snapshot, world());
             let out = dir.join("scorecards");
             std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
             let path = out.join(format!("scorecard-{}.html", snapshot.match_id));
@@ -624,7 +637,9 @@ fn squad_for(team_id: u32) -> Vec<captains_call_2027_lib::Player> {
         .collect()
 }
 
-fn update_view(settings: &captains_call_2027_lib::core::updater::UpdateSettings) -> serde_json::Value {
+fn update_view(
+    settings: &captains_call_2027_lib::core::updater::UpdateSettings,
+) -> serde_json::Value {
     let installed = DB_VERSION.to_string();
     serde_json::json!({
         "installed": installed,

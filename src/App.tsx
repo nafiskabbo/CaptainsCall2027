@@ -8,6 +8,7 @@ import WorldScreen from "./screens/WorldScreen";
 import OffSeasonScreen from "./screens/OffSeasonScreen";
 import SeasonSummary from "./screens/SeasonSummary";
 import { seasonClock, seasonDate } from "./lib/date";
+import { Button } from "./ui";
 
 type Screen = "setup" | "career" | "match" | "summary" | "offseason";
 
@@ -285,9 +286,7 @@ export default function App() {
             >
               Save
             </button>
-            <button className="btn btn--ghost" onClick={quitToMenu}>
-              Main Menu
-            </button>
+            <Button variant="ghost" onClick={quitToMenu}>Main Menu</Button>
             <button
               className="btn btn--continue"
               title="Play my next match"
