@@ -7,6 +7,7 @@ use crate::db::{self, CareerState, SaveSummary};
 use crate::match_::state::{MatchPhase, MatchSnapshot};
 use crate::match_::MatchInput;
 use crate::world::load_world;
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
@@ -617,6 +618,29 @@ pub fn set_match_input(state: SharedState<'_>, input: MatchInput) -> Result<(), 
         live.sim.input = input;
     }
     Ok(())
+}
+
+/// Outcome names in the engine's array order.
+const NAMES: [&str; 9] = [
+    "dot", "one", "two", "three", "four", "six", "out", "wide", "no_ball",
+];
+
+/// The chance of each outcome on the next delivery, for the shot picker.
+///
+/// Keyed by outcome name rather than returned as an array, so the UI reads
+/// `odds.four` and not `odds[4]` — the engine's array order is an
+/// implementation detail that should not leak into the interface.
+#[tauri::command]
+pub fn preview_ball(state: SharedState<'_>) -> Result<HashMap<String, f64>, String> {
+    let guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_ref().ok_or("no career in progress")?;
+    let live = career.live.as_ref().ok_or("no live match")?;
+    let p = live.sim.preview_ball();
+    Ok(NAMES
+        .iter()
+        .enumerate()
+        .map(|(i, n)| ((*n).to_string(), p[i]))
+        .collect())
 }
 
 /// Advance N balls in the live fixture; auto-records the result at the end.

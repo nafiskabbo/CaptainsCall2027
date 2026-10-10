@@ -10,8 +10,10 @@ import type {
   Format,
   MatchInput,
   MatchSnapshot,
+  ShotChoice,
   World,
 } from "../types";
+import { SHOT_CHOICES, SHOT_LABEL } from "../types";
 import MatchView from "./MatchView";
 import { Button, Meter, Panel, Stat } from "../ui";
 import ManhattanChart from "../components/ManhattanChart";
@@ -88,6 +90,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
     hit_and_run_toggle: false,
     target_bowler_id: 0,
     field_preset: "balanced",
+    shot_choice: null,
   });
   const input = orders;
   const patchOrders = (patch: Partial<MatchInput>) =>
@@ -132,6 +135,33 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
   useEffect(() => {
     api.setMatchInput(input).catch(() => undefined);
   }, [orders]);
+
+  /*
+    The odds of each shot against the bowler currently in.
+
+    These come from the engine, not from the risk table: the same distribution
+    the next ball will actually be rolled against. They are fetched after the
+    orders are pushed, because the preview reflects the committed shot — picking
+    "6" and seeing its odds fall is the feedback that makes the risk legible.
+  */
+  const [odds, setOdds] = useState<Partial<Record<ShotChoice, number>>>({});
+  const [outOdds, setOutOdds] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    let stale = false;
+    api
+      .previewBall()
+      .then((p) => {
+        if (stale) return;
+        const next: Partial<Record<ShotChoice, number>> = {};
+        for (const c of SHOT_CHOICES) next[c] = p[c] ?? 0;
+        setOdds(next);
+        setOutOdds(p.out);
+      })
+      .catch(() => undefined);
+    return () => {
+      stale = true;
+    };
+  }, [orders, snapshot]);
 
   const advance = async (n: number) => {
     setBusy(true);
@@ -452,6 +482,92 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
             )}
             {status && <p className="muted">{status}</p>}
           </div>
+
+          {/*
+            The shot selector. This is the batting mechanic: you commit to an
+            outcome and the engine resolves that attempt. Committing raises the
+            chance of the outcome you asked for *and* the chance of being
+            dismissed, by an amount that scales with how much the shot risks —
+            so the choice is a real trade, not a formality.
+
+            The icons are the same chips used in the over grid below, which is
+            how the original does it: one control, read as both an input and a
+            record of what happened.
+          */}
+          {!complete && (
+            <div className="shotpicker">
+              <span className="shotpicker__label">
+                Play the shot
+                <span className="muted"> — pick an outcome to commit to it</span>
+              </span>
+              {SHOT_CHOICES.map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  className={[
+                    "ball",
+                    `ball--${choice}`,
+                    "ball--button",
+                    orders.shot_choice === choice ? "ball--chosen" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() =>
+                    patchOrders({
+                      shot_choice: orders.shot_choice === choice ? null : choice,
+                    })
+                  }
+                  aria-pressed={orders.shot_choice === choice}
+                  title={
+                    orders.shot_choice === choice
+                      ? "Click to let the engine choose"
+                      : `Attempt ${SHOT_LABEL[choice]}`
+                  }
+                >
+                  <span className="ball__label">{SHOT_LABEL[choice]}</span>
+                  {/*
+                    The odds of this shot coming off, straight from the engine's
+                    own distribution for this bowler. Without them the picker is a
+                    guess with six buttons; with them it is a priced decision.
+                  */}
+                  {odds[choice] !== undefined && (
+                    <em className="ball__odds">{Math.round(odds[choice] * 100)}%</em>
+                  )}
+                </button>
+              ))}
+              {/*
+                The price of the attempt, as its own chip.
+
+                This is not decoration: it is the other half of every decision in
+                this picker. Choosing a six because it is worth 23% while the
+                wicket sits at 41% would be indefensible — so the wicket is
+                shown in the same visual language as the runs, where the player
+                is already comparing. An earlier pass printed a hard-coded "risk
+                86%" from a static table, which had nothing to do with the
+                number the engine actually rolls and quietly contradicted the
+                real odds sitting next to it.
+              */}
+              {outOdds !== undefined && (
+                <span
+                  className={[
+                    "ball",
+                    "ball--w",
+                    "ball--chip",
+                    "ball--readonly",
+                    outOdds > (orders.shot_choice ? (odds[orders.shot_choice] ?? 0) : 0)
+                      ? "ball--danger"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  title="Chance of being dismissed on this delivery"
+                >
+                  <span className="ball__label">W</span>
+                  <em className="ball__odds">{Math.round(outOdds * 100)}%</em>
+                </span>
+              )}
+            </div>
+          )}
 
           {/*
             The outcome grid, in the original's layout: the last three overs

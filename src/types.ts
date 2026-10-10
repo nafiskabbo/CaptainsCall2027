@@ -151,6 +151,10 @@ export interface BallOutcome {
    */
   direction_deg: number;
   shot: ShotKind;
+  /** The outcome the batter attempted, when they chose one. */
+  attempted: ShotChoice | null;
+  /** Whether the attempt produced the outcome asked for. */
+  shot_came_off: boolean | null;
 }
 
 // Rust: FieldPreset with #[serde(rename_all = "snake_case")]
@@ -161,12 +165,43 @@ export type FieldPreset =
   | "boundary_riding"
   | "spin_trap";
 
+/**
+ * The outcome a batter commits to on a delivery (`ShotChoice` in Rust).
+ *
+ * This is the batting mechanic: you pick a shot and the engine resolves that
+ * attempt, weighted by the matchup and by how much risk the shot carries.
+ * Going for a boundary scores more and gets you out more.
+ */
+export type ShotChoice = "dot" | "one" | "two" | "three" | "four" | "six";
+
+export const SHOT_CHOICES: ShotChoice[] = ["dot", "one", "two", "three", "four", "six"];
+
+/** The character shown on a shot icon, matching the engine's labels. */
+export const SHOT_LABEL: Record<ShotChoice, string> = {
+  dot: "0",
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  six: "6",
+};
+
+/*
+  There is deliberately no client-side risk table for shots. An earlier pass
+  exported one and printed "risk 86%" next to the engine's real odds, which
+  contradicted them: the numbers a shot carries as risk are the engine's
+  business, and duplicating them in TypeScript guarantees they drift. The UI
+  reads its odds from `preview_ball` instead.
+*/
+
 export interface MatchInput {
   batting_aggression: number;
   keep_strike_toggle: boolean;
   hit_and_run_toggle: boolean;
   target_bowler_id: number;
   field_preset: FieldPreset;
+  /** `null` lets the engine resolve the ball uninfluenced. */
+  shot_choice: ShotChoice | null;
 }
 
 export interface BattingCard {

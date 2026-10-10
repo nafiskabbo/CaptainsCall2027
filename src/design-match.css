@@ -265,6 +265,108 @@
   background: linear-gradient(180deg, #a06fc4, #5e3680);
 }
 
+/*
+  The shot picker — the batting mechanic.
+
+  The chips reuse the outcome-icon look of the over grid deliberately: one
+  visual language for "what a delivery did" and "what I asked for". Odds are
+  printed on the chip so the trade is priced before you commit, and the chosen
+  chip is lifted and ringed so the state is unmistakable at a glance.
+*/
+.shotpicker {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  padding: 0.3rem 0.4rem;
+  margin-bottom: 0.35rem;
+  background: linear-gradient(180deg, #eceff3, #d8dde4);
+  border: 1px solid #9aa3ae;
+  border-radius: 3px;
+}
+
+.shotpicker__label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #1c2733;
+  margin-right: 0.25rem;
+}
+
+.shotpicker__risk {
+  color: #a3352f;
+}
+
+/* The wicket chip is a readout, not a control, so it must not invite a click. */
+.ball--readonly {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.ball--readonly:hover {
+  filter: none;
+}
+
+/* Only flagged when being out is likelier than the shot coming off. */
+.ball--danger {
+  box-shadow:
+    0 0 0 2px #d6453f,
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.ball--button {
+  /* Buttons carry UA chrome that would break the chip silhouette. */
+  appearance: none;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  min-width: 34px;
+  height: 30px;
+  padding: 2px 4px 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.ball--button:hover {
+  filter: brightness(1.12);
+}
+
+.ball--button:focus-visible {
+  outline: 2px solid #1c6fd0;
+  outline-offset: 1px;
+}
+
+.ball--chosen {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 2px #ffd23f,
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.ball__label {
+  line-height: 1;
+}
+
+.ball__odds {
+  font-style: normal;
+  font-size: 0.56rem;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.92;
+}
+
+/*
+  Choices the over grid has no colour for (1, 2, 3) still need chips, so they
+  take the running-scored orange. `dot` already exists on `.ball--dot`.
+*/
+.ball--one,
+.ball--two,
+.ball--three {
+  background: linear-gradient(180deg, #e08a3c, #b45f18);
+}
+
 /* bottom scorebar */
 .scorebar {
   position: absolute;

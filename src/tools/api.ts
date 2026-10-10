@@ -84,6 +84,11 @@ export const api = {
   startFixture: (fixtureId: number) => invoke<MatchSnapshot>("start_fixture", { fixtureId }),
   getMatch: () => invoke<MatchSnapshot | null>("get_match"),
   setMatchInput: (input: MatchInput) => invoke<void>("set_match_input", { input }),
+  /**
+   * The chance of each outcome on the next delivery, keyed by outcome name.
+   * Used by the shot picker so a committed shot is priced, not guessed.
+   */
+  previewBall: () => invoke<Record<string, number>>("preview_ball"),
   /** Advance `count` deliveries and return the new snapshot. */
   simMatch: (count: number) => invoke<MatchSnapshot>("sim_match", { count }),
   /** Fast-forward to the end of the current innings. */

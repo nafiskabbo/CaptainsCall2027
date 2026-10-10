@@ -56,6 +56,90 @@ pub struct BallOutcome {
     /// How the ball was played. Drives the ball's height/arc in the view.
     #[serde(default)]
     pub shot: ShotKind,
+    /// The outcome the batter attempted, when they chose one.
+    #[serde(default)]
+    pub attempted: Option<ShotChoice>,
+    /// Whether the attempt produced the outcome asked for.
+    #[serde(default)]
+    pub shot_came_off: Option<bool>,
+}
+
+/// The outcome the batter committed to on this delivery, if any.
+///
+/// Set only when the player made an explicit shot choice, so the UI can show
+/// "you went for a six" and whether it came off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShotChoice {
+    Dot,
+    One,
+    Two,
+    Three,
+    Four,
+    Six,
+}
+
+impl ShotChoice {
+    /// Index into the engine's outcome distribution.
+    pub fn index(self) -> usize {
+        match self {
+            ShotChoice::Dot => 0,
+            ShotChoice::One => 1,
+            ShotChoice::Two => 2,
+            ShotChoice::Three => 3,
+            ShotChoice::Four => 4,
+            ShotChoice::Six => 5,
+        }
+    }
+
+    /// How much upside the player is asking for, and so how much risk they take.
+    ///
+    /// This is the heart of the decision: a dot is safe and worth nothing, a
+    /// six is worth six but is the likeliest thing to be missed and taken.
+    pub fn risk(self) -> f64 {
+        match self {
+            ShotChoice::Dot => 0.0,
+            ShotChoice::One => 0.18,
+            ShotChoice::Two => 0.30,
+            ShotChoice::Three => 0.42,
+            ShotChoice::Four => 0.58,
+            ShotChoice::Six => 0.86,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ShotChoice::Dot => "0",
+            ShotChoice::One => "1",
+            ShotChoice::Two => "2",
+            ShotChoice::Three => "3",
+            ShotChoice::Four => "4",
+            ShotChoice::Six => "6",
+        }
+    }
+
+    pub fn all() -> [ShotChoice; 6] {
+        [
+            ShotChoice::Dot,
+            ShotChoice::One,
+            ShotChoice::Two,
+            ShotChoice::Three,
+            ShotChoice::Four,
+            ShotChoice::Six,
+        ]
+    }
+
+    pub fn from_runs(runs: u32) -> Option<Self> {
+        Some(match runs {
+            0 => ShotChoice::Dot,
+            1 => ShotChoice::One,
+            2 => ShotChoice::Two,
+            3 => ShotChoice::Three,
+            4 => ShotChoice::Four,
+            6 => ShotChoice::Six,
+            _ => return None,
+        })
+    }
 }
 
 /// How a shot was played, which decides the animation arc.
@@ -115,6 +199,16 @@ pub struct MatchInput {
     pub hit_and_run_toggle: bool,
     pub target_bowler_id: u32,
     pub field_preset: FieldPreset,
+    /// The outcome the batter is attempting this delivery, if they chose one.
+    ///
+    /// This is the Cricket Coach shot mechanic: instead of the engine simply
+    /// resolving a ball, the player commits to an outcome and the engine
+    /// resolves *that attempt* — weighted by the matchup, and with the risk of
+    /// missing it expressed as extra chances of being dismissed. `None` keeps
+    /// the uninfluenced simulation, which is what CPU-vs-CPU and career
+    /// auto-simulation use.
+    #[serde(default)]
+    pub shot_choice: Option<ShotChoice>,
 }
 
 impl Default for MatchInput {
@@ -125,6 +219,7 @@ impl Default for MatchInput {
             hit_and_run_toggle: false,
             target_bowler_id: 0,
             field_preset: FieldPreset::Balanced,
+            shot_choice: None,
         }
     }
 }

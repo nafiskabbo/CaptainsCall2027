@@ -170,6 +170,21 @@ async function main() {
     const next = career.state.fixtures.find((f) => f.id === career.nextFixtureId);
     await invoke("start_fixture", { fixtureId: next.id });
     const match = await invoke("sim_match", { count: 1 });
+    // The shot picker's odds. Pinned here because a rename of an outcome key
+    // would silently render "NaN%" on a chip rather than fail loudly — the same
+    // class of bug as the phantom `net_run_rate_x100` field below.
+    const preview = await invoke("preview_ball");
+    const PREVIEW_KEYS = ["dot", "one", "two", "three", "four", "six", "out", "wide", "no_ball"];
+    const missing = PREVIEW_KEYS.filter((k) => typeof preview?.[k] !== "number");
+    if (missing.length) {
+      console.log(`  FAIL  preview_ball — missing or non-numeric: ${missing.join(", ")}`);
+      process.exitCode = 1;
+    } else {
+      const sum = PREVIEW_KEYS.reduce((a, k) => a + preview[k], 0);
+      console.log(
+        `  ${Math.abs(sum - 1) < 1e-6 ? "PASS" : "FAIL"}  preview_ball — 9 outcomes, summing to ${sum.toFixed(6)}`,
+      );
+    }
     // Play the fixture out so the table has a result in it. The table is
     // compared below, and an empty array cannot be checked — which is exactly
     // how a phantom field like `net_run_rate_x100` survived here for so long:

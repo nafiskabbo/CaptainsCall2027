@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::engine::{resolve_ball, BallContext};
+use super::engine::{outcome_probabilities, resolve_ball, BallContext};
 use super::state::{
     BallOutcome, BattingCard, BowlingCard, ExtraKind, FieldPreset, Innings, MatchClock, MatchInput,
     MatchPhase, MatchResult, OverSummary, TossDecision, WinMargin,
@@ -356,6 +356,52 @@ impl SimState {
         let batting = self.side_strength_of(batting_ids);
         let bowling = self.side_strength_of(bowling_ids);
         crate::match_::engine::minnow_boost(batting, bowling)
+    }
+
+    /// The probability of each outcome on the next delivery, in engine order
+    /// (dot, 1, 2, 3, 4, 6, out, wide, no-ball).
+    ///
+    /// This is what makes the shot picker a decision rather than a guess: the
+    /// player can see what their shot is actually worth against the bowler
+    /// currently in. Builds the same context as [`Self::bowl_ball`] but consumes
+    /// no randomness, so previewing cannot alter the match.
+    pub fn preview_ball(&self) -> [f64; 9] {
+        let (Some(striker_id), Some(bowler_id)) = (self.striker_id, self.bowler_id) else {
+            return [0.0; 9];
+        };
+        if self.phase == MatchPhase::Complete {
+            return [0.0; 9];
+        }
+        let striker = self.player(striker_id);
+        let bowler = self.player(bowler_id);
+        let bowling_team = self
+            .team_of(self.current_innings_ref().bowling_team_id)
+            .clone();
+        let innings = self.current_innings_ref().clone();
+        let over = innings.balls / 6;
+        let powerplay = over < self.cfg.format.powerplay_overs();
+        let chasing = self.is_chasing();
+        let rrr = self.required_rate();
+
+        // Weight building borrows the innings mutably even though it only reads
+        // them; `outcome_probabilities` takes the context by value.
+        let mut scratch = innings;
+        let ctx = BallContext {
+            striker: &striker,
+            batter_id: striker_id,
+            bowler: &bowler,
+            fielding_team: &bowling_team,
+            innings: &mut scratch,
+            format: self.cfg.format,
+            over,
+            powerplay,
+            chasing,
+            run_rate_needed: rrr,
+            minnow_boost: self.minnow_boost(),
+            input: &self.input,
+            rng: &mut SimRng::new(0),
+        };
+        outcome_probabilities(&ctx)
     }
 
     fn side_strength_of(&self, team_id: u32) -> u8 {

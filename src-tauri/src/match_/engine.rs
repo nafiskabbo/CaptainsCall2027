@@ -5,7 +5,8 @@
 //! from the caller passing `&mut SimRng` (specs FR-13, NFR-7).
 
 use super::state::{
-    BallOutcome, Dismissal, DismissalType, ExtraKind, FieldPreset, Innings, MatchInput, ShotKind,
+    BallOutcome, Dismissal, DismissalType, ExtraKind, FieldPreset, Innings, MatchInput, ShotChoice,
+    ShotKind,
 };
 use crate::core::rng::{clamp, Distribution, SimRng};
 use crate::core::types::{Format, Player, Team};
@@ -60,8 +61,45 @@ pub struct BallContext<'a> {
     pub rng: &'a mut SimRng,
 }
 
-/// Deliver a single ball and resolve the outcome.
-pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
+/// The probability of each outcome on the next delivery, in engine order.
+///
+/// Exposed so the UI can show the player what their shot actually is worth
+/// against this bowler — choosing blind would make the mechanic a slot machine
+/// rather than a decision.
+pub fn outcome_probabilities(ctx: &BallContext<'_>) -> [f64; 9] {
+    let mut probe = BallContext {
+        striker: ctx.striker,
+        batter_id: ctx.batter_id,
+        bowler: ctx.bowler,
+        fielding_team: ctx.fielding_team,
+        innings: ctx.innings,
+        format: ctx.format,
+        over: ctx.over,
+        powerplay: ctx.powerplay,
+        chasing: ctx.chasing,
+        run_rate_needed: ctx.run_rate_needed,
+        minnow_boost: ctx.minnow_boost,
+        input: ctx.input,
+        // Unused: weight building never consumes randomness.
+        rng: &mut SimRng::new(0),
+    };
+    let w = build_weights(&mut probe);
+    let total: f64 = w.iter().sum();
+    if total <= 0.0 {
+        return [0.0; 9];
+    }
+    let mut out = [0.0f64; 9];
+    for i in 0..9 {
+        out[i] = w[i] / total;
+    }
+    out
+}
+
+/// Build the outcome weight vector for one delivery.
+///
+/// Split out from [`resolve_ball`] so the UI can preview the same distribution
+/// the engine will actually roll against.
+fn build_weights(ctx: &mut BallContext<'_>) -> Vec<f64> {
     let (_target_rpb, power_k, target_wpb) = FORMAT_ANCHOR[format_index(ctx.format)];
 
     // --- relative quality, smoothed so extreme ratings can't explode ---
@@ -205,12 +243,92 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
         w[OUT] *= k;
     }
 
+    /*
+        The player's shot choice, applied last so the format anchor above cannot
+        scale the intent back out.
+
+        Committing to an outcome moves probability toward it and — crucially —
+        toward an outcome you cannot force, the chance of being dismissed rises
+        with the risk taken. That is the whole decision: a six is worth six runs
+        and is the likeliest thing to get you out. `skill` scales how far the
+        intent is honoured, so a good batter attempts sixs and converts them
+        while a tailender mostly gets bowled or caught.
+    */
+    if let Some(choice) = ctx.input.shot_choice {
+        let risk = choice.risk();
+        let chosen = choice.index();
+        /*
+            Set the attempt's probability directly rather than nudging weights.
+
+            Scaling a weight only shifts probability proportionally, which
+            washed the choice out: committing to a single moved the scoring
+            rate by less than a hundredth of a run per ball. Declaring the shot
+            sets its chance outright, and everything that *fails* is split
+            between the remaining outcomes and being dismissed.
+
+            The base rates are the chance a competent batter gets each outcome
+            when they commit to it — far above the unforced baseline, because
+            going for a four is a real attempt, not a lottery. `skill` moves
+            that with the matchup, and the failure is heavily weighted toward
+            the wicket in proportion to the risk, which is the whole decision:
+            a six is worth six and is the likeliest thing to get you out.
+        */
+        let base = match choice {
+            ShotChoice::Dot => 0.72,
+            ShotChoice::One => 0.70,
+            ShotChoice::Two => 0.46,
+            ShotChoice::Three => 0.26,
+            ShotChoice::Four => 0.44,
+            ShotChoice::Six => 0.22,
+        };
+        let p = (base * rel.clamp(0.45, 1.9)).clamp(0.03, 0.93);
+        let fail = 1.0 - p;
+        /*
+            How much of a failed attempt becomes a dismissal.
+
+            Calibrated against the realised distribution, not guessed. Sharing
+            most of the failure into wickets (the first pass used
+            `0.20 + risk * 0.78`) made a six a 70% chance of being out, which is
+            not a gamble anybody takes — it made the most aggressive option
+            strictly dominated. At this rate a six is genuinely tempting but
+            still the likeliest thing to get you out, and rotating for a single
+            is a safe way to keep the board moving.
+        */
+        let wicket_share = (fail * (0.15 + risk * 0.45)).clamp(0.0, fail);
+        let other_share = fail - wicket_share;
+
+        let rest_other: f64 = (0..w.len())
+            .filter(|i| *i != chosen && *i != OUT)
+            .map(|i| w[i])
+            .sum();
+        if rest_other > 0.0 {
+            w[chosen] = p;
+            w[OUT] = wicket_share;
+            let scale = other_share / rest_other;
+            for (i, weight) in w.iter_mut().enumerate() {
+                if i != chosen && i != OUT {
+                    *weight *= scale;
+                }
+            }
+        }
+    }
+
+    w.to_vec()
+}
+
+/// Deliver a single ball and resolve the outcome.
+pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
+    let w = build_weights(ctx);
     let wicket_ctx = WicketContext::from(ctx);
     let rng: &mut SimRng = &mut *ctx.rng;
-    let dist = Distribution::new(w.to_vec());
+    let dist = Distribution::new(w);
     let idx = dist.pick(rng);
 
-    match idx {
+    // Whether the delivery produced the outcome that was attempted, so the UI
+    // can tell the player whether their shot came off.
+    let attempted = ctx.input.shot_choice;
+
+    let outcome = match idx {
         DOT => plain(0, false, rng),
         ONE => plain(1, false, rng),
         TWO => plain(2, false, rng),
@@ -236,6 +354,8 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
             // A wide never reaches the bat, so it goes past the off side.
             direction_deg: (rng.below(50) + 70) as u16,
             shot: ShotKind::Beaten,
+            attempted: None,
+            shot_came_off: None,
         },
         NOBALL => BallOutcome {
             runs: 0,
@@ -254,9 +374,29 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
             ),
             direction_deg: (rng.below(120) + 30) as u16,
             shot: ShotKind::Driven,
+            attempted: None,
+            shot_came_off: None,
         },
         _ => plain(0, false, rng),
+    };
+    // Tag the delivery with what the batter was attempting, so the UI can say
+    // whether the shot came off. `None` (no choice) leaves it unset.
+    if let Some(target) = attempted {
+        let got = match outcome.runs {
+            0 => ShotChoice::Dot,
+            r => match ShotChoice::from_runs(r) {
+                Some(c) => c,
+                // 5 cannot happen off the bat; treat as "not the shot asked for".
+                None => return outcome,
+            },
+        };
+        return BallOutcome {
+            attempted: Some(target),
+            shot_came_off: Some(got == target && outcome.dismissal.is_none()),
+            ..outcome
+        };
     }
+    outcome
 }
 
 /// Pick a bearing, weighted so square and straight shots are commoner than
@@ -302,6 +442,8 @@ fn four(rng: &mut SimRng) -> BallOutcome {
         ),
         direction_deg,
         shot: ShotKind::Driven,
+        attempted: None,
+        shot_came_off: None,
     }
 }
 
@@ -330,6 +472,8 @@ fn six(rng: &mut SimRng) -> BallOutcome {
         ),
         direction_deg,
         shot: ShotKind::Lofted,
+        attempted: None,
+        shot_came_off: None,
     }
 }
 
@@ -381,6 +525,8 @@ fn plain(runs: u32, strike_changes: bool, rng: &mut SimRng) -> BallOutcome {
         commentary: commentary(rng, &lines),
         direction_deg,
         shot,
+        attempted: None,
+        shot_came_off: None,
     }
 }
 
@@ -461,6 +607,8 @@ fn wicket(ctx: &WicketContext, rng: &mut SimRng) -> BallOutcome {
         commentary: commentary.to_string(),
         direction_deg,
         shot,
+        attempted: None,
+        shot_came_off: None,
     }
 }
 

@@ -328,6 +328,142 @@ fn selections_survive_a_save_round_trip() {
     assert_eq!(loaded.selections.get(&fixture.id).unwrap().xi_ids, squad);
 }
 
+/// The shot picker must be priced from the engine, not invented in the UI.
+///
+/// The React picker prints these numbers on each chip, so a player decides what
+/// to play by reading them. If `preview_ball` returned zeros, a flat
+/// distribution, or totals that don't add to one, the control would either be
+/// blank or actively misleading — and it would be misleading *silently*, since
+/// a plausible-looking wrong number is worse than a missing one.
+#[test]
+fn previewed_ball_odds_are_a_real_distribution() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+
+    let mut career = Career::start(&world, team_id, "odds".into(), 909).unwrap();
+    let fixture = career.next_fixture().unwrap().clone();
+    career.start_fixture(&world, fixture.id).unwrap();
+    career.advance(6);
+
+    let live = career.live.as_ref().expect("a live match");
+    let p = live.sim.preview_ball();
+
+    let total: f64 = p.iter().sum();
+    assert!(
+        (total - 1.0).abs() < 1e-6,
+        "outcome odds must sum to 1, got {total}"
+    );
+    for (i, v) in p.iter().enumerate() {
+        assert!(*v >= 0.0, "outcome {i} has negative probability {v}");
+        assert!(*v <= 1.0, "outcome {i} has impossible probability {v}");
+    }
+
+    // A dot ball is the commonest single outcome in cricket; if it isn't, the
+    // distribution is not describing a real over. (Index 6 is the wicket, which
+    // is not an "outcome the batter chose" and is excluded from the comparison.)
+    let commonest_other = p
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != 0 && *i != 6)
+        .map(|(_, v)| *v)
+        .fold(0.0f64, f64::max);
+    assert!(
+        p[0] > commonest_other,
+        "expected dots to be the commonest outcome, got {p:?}"
+    );
+}
+
+/// Previewing must not consume randomness or disturb the match.
+///
+/// The picker re-fetches odds on every render. If previewing advanced the RNG,
+/// the same career would produce different results depending on whether the UI
+/// had been looked at — the kind of bug that makes a save unreproducible and
+/// impossible to debug.
+#[test]
+fn previewing_does_not_disturb_the_match() {
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+
+    let mut peeked = Career::start(&world, team_id, "peeked".into(), 4242).unwrap();
+    let mut untouched = Career::start(&world, team_id, "plain".into(), 4242).unwrap();
+
+    let f1 = peeked.next_fixture().unwrap().clone();
+    peeked.start_fixture(&world, f1.id).unwrap();
+    let f2 = untouched.next_fixture().unwrap().clone();
+    untouched.start_fixture(&world, f2.id).unwrap();
+
+    // The UI polls the odds on every render; do the same, a lot.
+    for _ in 0..200 {
+        if let Some(live) = peeked.live.as_ref() {
+            let _ = live.sim.preview_ball();
+        }
+        peeked.advance(1);
+    }
+    untouched.advance(200);
+
+    let a = peeked.live_snapshot();
+    let b = untouched.live_snapshot();
+    let score = |s: &Option<captains_call_2027_lib::match_::state::MatchSnapshot>| {
+        s.as_ref()
+            .and_then(|s| s.innings.first().map(|i| (i.runs, i.wickets, i.balls)))
+    };
+    assert_eq!(
+        score(&a),
+        score(&b),
+        "previewing changed the result: {:?} vs {:?}",
+        score(&a),
+        score(&b)
+    );
+}
+
+/// The committed shot must actually be what the engine rolls against.
+///
+/// This is the mechanic end-to-end: the same career and seed, one playing for
+/// boundaries and one leaving every ball to the engine, must produce different
+/// innings. If they did not, the picker's buttons would be decoration.
+#[test]
+fn a_committed_shot_changes_the_innings() {
+    use captains_call_2027_lib::match_::state::ShotChoice;
+
+    let world = load_world();
+    let (team_id, _comp) = playable_team();
+
+    let run = |choice: Option<ShotChoice>, name: &str| {
+        let mut career = Career::start(&world, team_id, name.into(), 31337).unwrap();
+        let fixture = career.next_fixture().unwrap().clone();
+        career.start_fixture(&world, fixture.id).unwrap();
+        if let Some(live) = career.live.as_mut() {
+            live.sim.input.shot_choice = choice;
+        }
+        let snap = career.advance(1_000_000);
+        snap.innings
+            .first()
+            .map(|i| (i.runs, i.wickets))
+            .unwrap_or((0, 0))
+    };
+
+    let passive = run(None, "passive");
+    let boundary = run(Some(ShotChoice::Four), "boundary");
+    let blocked = run(Some(ShotChoice::Dot), "blocked");
+
+    assert_ne!(
+        passive, boundary,
+        "going for four must not simulate identically to leaving it to the engine"
+    );
+    assert_ne!(
+        passive, blocked,
+        "blocking every ball must not simulate identically to leaving it to the engine"
+    );
+    // Blocking should cost runs. This is the direction the mechanic has to hold
+    // in a real innings, not just one ball's distribution.
+    assert!(
+        blocked.0 < passive.0,
+        "blocking every ball scored {} vs {} unforced — it should cost runs",
+        blocked.0,
+        passive.0
+    );
+}
+
 #[test]
 fn aggression_changes_outcomes() {
     let world = load_world();
