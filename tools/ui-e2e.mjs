@@ -518,7 +518,10 @@ async function scenarioContinue({ window, calls }) {
   check("continue is not just a disabled-looking stub",
     newCalls.some((c) => c === "advance_to_my_match" || c === "start_fixture"),
     `invoked: ${newCalls.join(", ")}`);
-  const onMatch = $$(window, "canvas").length > 0;
+  // Detect the match screen by what it shows, not by what it draws it with.
+  // This asked for a <canvas>, so when the ground moved to SVG it silently
+  // stopped recognising its own match screen and reported the flow as broken.
+  const onMatch = $$(window, ".ground").length > 0 || $$(window, ".shotpicker").length > 0;
   if (onMatch) {
     check("continue opened the player's match", true);
     return;
@@ -591,9 +594,27 @@ async function scenarioMatch({ window, calls, consoleErrors }) {
   const play = buttons(window, /play match/i)[0];
   if (!check("play button present", !!play, "no 'Play match' button")) return;
   click(window, play);
-  await until("match screen", () => hasText(window, "Score") || $$(window, "canvas").length > 0);
+  await until("match screen", () => hasText(window, "Score") || $$(window, ".ground").length > 0);
 
-  check("match canvas mounted", $$(window, "canvas").length > 0, "no <canvas> in the DOM");
+  check("the ground is mounted", $$(window, ".ground").length > 0, "no ground in the DOM");
+
+  /*
+    The ground is SVG, not canvas, precisely so that it can be seen. The canvas
+    version rendered nothing under the screenshot harness, which meant the field
+    had never actually been looked at before it was compared against the
+    original. These checks are the cheap half of that: they prove the thing is
+    really there rather than a stub.
+  */
+  check("the ground draws a stadium, not a blank box",
+    $$(window, ".ground pattern").length >= 2,
+    `${$$(window, ".ground pattern").length} patterns (crowd + mown stripes expected)`);
+  check("fielders are drawn on the ground", $$(window, "[data-testid=fielder]").length >= 8,
+    `${$$(window, "[data-testid=fielder]").length} fielders`);
+  check("fielders carry their names, as the original labels them",
+    $$(window, ".ground__fname").length >= 8,
+    `${$$(window, ".ground__fname").length} labels`);
+  check("the ball is drawn", $$(window, "[data-testid=ball]").length === 1);
+  check("the pitch is drawn", $$(window, ".ground__pitch").length === 1);
   const snap = await invoke(window, "get_match");
   check("engine returned a snapshot", !!snap, "no live match in the harness");
 

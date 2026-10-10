@@ -1,18 +1,25 @@
-//! Overhead 2D match view — the overhead ground, fielders and the ball.
+//! The match view — the ground, the crowd, the fielders and the ball.
 //!
-//! Modelled on Cricket Coach 2014's overhead view, which is deliberately plain:
-//! a flat green field, a tan pitch, small dots for players with surnames
-//! beside them, a photographic crowd band beyond the rope and a scorebar. No
-//! perspective, no figures.
+//! Rebuilt as SVG rather than canvas, for two reasons.
 //!
-//! The animation is driven by *what actually happened on the ball*. The engine
-//! reports a bearing and a shot type for every delivery (`BallOutcome`), and
-//! this view plays that delivery: run-up, release, the ball travelling to the
+//! The first is fidelity. The original draws a *tilted* stadium: the ground is
+//! an ellipse seen from high and behind, compressed towards a horizon, ringed
+//! by boundary advertising, with packed seating sweeping across the top of the
+//! frame. A flat overhead circle — which is what the canvas version drew, and
+//! what `pics/pitch2.bmp` is — is a different picture entirely. Perspective
+//! geometry wants real coordinates rather than an immediate-mode raster.
+//!
+//! The second is that it can be *seen*. The canvas version was invisible to the
+//! screenshot harness, which stubs the 2D context, so the field had never
+//! actually been looked at. SVG is DOM: it renders in jsdom, it can be asserted
+//! on by the e2e, and a regression in it is visible instead of silent.
+//!
+//! The animation is still driven by *what actually happened on the ball*. The
+//! engine reports a bearing and a shot type for every delivery (`BallOutcome`),
+//! and this plays that delivery: run-up, release, the ball travelling to the
 //! pitch, then out to wherever it was hit, with fielders moving to intercept.
-//! Nothing loops on a fixed timer — which is why the previous version looked
-//! identical on every ball, because it had nothing to animate.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BallOutcome, MatchSnapshot } from "../types";
 
 interface Props {
@@ -25,26 +32,38 @@ interface Props {
   dayNight?: boolean;
 }
 
+/** A point on the ground, in ground space. */
+interface Ground {
+  /** Degrees, 0 = straight back past the bowler, growing clockwise. */
+  bearing: number;
+  /** 0 at the middle of the pitch, 1 at the boundary rope. */
+  radius: number;
+}
+
 /** Where a fielder stands before the ball is hit. */
 interface FieldSlot {
-  angle: number;
-  orbit: number;
+  bearing: number;
+  radius: number;
   /** Seconds to reach the ball once it is struck. */
   pace: number;
 }
 
-/** The nine ring positions plus the keeper, in the original's layout. */
+/** The ring positions plus the keeper, as the original lays them out. */
 const FIELD_SLOTS: FieldSlot[] = [
-  { angle: -1.62, orbit: 0.30, pace: 0.55 }, // slip
-  { angle: -1.57, orbit: 0.20, pace: 0.5 }, // keeper
-  { angle: -1.1, orbit: 0.52, pace: 0.6 }, // point
-  { angle: -0.35, orbit: 0.46, pace: 0.55 }, // cover
-  { angle: 0.0, orbit: 0.62, pace: 0.65 }, // mid-off
-  { angle: 0.42, orbit: 0.6, pace: 0.65 }, // mid-on
-  { angle: 0.85, orbit: 0.5, pace: 0.6 }, // midwicket
-  { angle: 1.45, orbit: 0.45, pace: 0.55 }, // square leg
-  { angle: 2.5, orbit: 0.72, pace: 0.7 }, // fine leg
+  { bearing: 168, radius: 0.20, pace: 0.5 }, // keeper
+  { bearing: 158, radius: 0.30, pace: 0.55 }, // slip
+  { bearing: 148, radius: 0.52, pace: 0.6 }, // point
+  { bearing: 135, radius: 0.62, pace: 0.6 }, // cover
+  { bearing: 120, radius: 0.70, pace: 0.65 }, // extra cover
+  { bearing: 100, radius: 0.66, pace: 0.65 }, // mid-off
+  { bearing: 80, radius: 0.58, pace: 0.6 }, // mid-on
+  { bearing: 55, radius: 0.50, pace: 0.6 }, // midwicket
+  { bearing: 25, radius: 0.55, pace: 0.55 }, // square leg
+  { bearing: 5, radius: 0.72, pace: 0.7 }, // fine leg
 ];
+
+/** Boundary advertising, as the original rings the ground with it. */
+const ADS = ["MARLEY", "HEALTHPUMP", "Sam..hupp", "PULSEWAVE", "THE NATION BANK"];
 
 /** Phases of one delivery, in seconds. */
 const RUN_UP = 0.55;
@@ -53,26 +72,120 @@ const AFTER_HIT = 0.95;
 const SETTLE = 0.5;
 const TOTAL = RUN_UP + TO_PITCH + AFTER_HIT + SETTLE;
 
+/* --- ground projection ------------------------------------------------- */
+
+/*
+  The screen geometry of the ground.
+
+  `HORIZON` is where the ground meets the stands; `CX`/`CY` place the middle of
+  the pitch low and left of centre, which is what puts the crowd sweeping across
+  the top right the way it does in the original. `FAR` compresses the far side
+  of the ground, so the ellipse reads as a tilted plane rather than a circle
+  seen face-on — the whole difference between a stadium and a diagram.
+*/
+const CX = 430;
+const CY = 470;
+const RX = 700;
+const RY = 560;
+const FAR = 0.46;
+/*
+  Shear. The original is not a disc seen square-on: the ground is rotated so the
+  far boundary sweeps up and to the right, with the stands wrapping the top and
+  right of the frame. Without this the projection produced a clean circle,
+  which is a diagram of a cricket ground rather than a view of one.
+*/
+const SHEAR = 0.30;
+
+/** Project a ground point to the screen. */
+function project(g: Ground): { x: number; y: number } {
+  const rad = (g.bearing * Math.PI) / 180;
+  // 0 points away from the camera (up the screen, past the bowler).
+  const gx = Math.sin(rad);
+  const gy = -Math.cos(rad);
+  // Depth squash: points beyond the middle of the ground compress towards the
+  // horizon, points nearer the camera spread out.
+  const depth = FAR + (1 - FAR) * ((gy + 1) / 2);
+  const x = CX + gx * g.radius * RX;
+  const y = CY + gy * g.radius * RY * depth;
+  // Shear the far side to the right, which is what tilts the plane.
+  return { x: x + (y - CY) * SHEAR, y };
+}
+
+/** The boundary rope, as an SVG path across the far side of the ground. */
+function boundaryPath(): string {
+  const pts: string[] = [];
+  for (let deg = 0; deg <= 360; deg += 4) {
+    const p = project({ bearing: deg, radius: 1 });
+    pts.push(`${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+  }
+  return `M${pts.join("L")}Z`;
+}
+
+/** Ball position for time `t` within one delivery, in ground space. */
+function ballAt(t: number, outcome: BallOutcome | null): Ground & { lift: number } {
+  const bowlerMark = { bearing: 0, radius: 0.16 };
+  const striker = { bearing: 180, radius: 0.055 };
+  const crease = { bearing: 180, radius: 0.075 };
+
+  if (!outcome) return { ...bowlerMark, lift: 0 };
+
+  if (t < RUN_UP) {
+    const p = t / RUN_UP;
+    return { bearing: 0, radius: 0.16 + p * 0.1, lift: 0 };
+  }
+  if (t < RUN_UP + TO_PITCH) {
+    const p = (t - RUN_UP) / TO_PITCH;
+    return {
+      bearing: 180 * p,
+      radius: 0.26 + (crease.radius - 0.26) * p,
+      lift: Math.sin(p * Math.PI) * 0.09,
+    };
+  }
+  const p = (t - RUN_UP - TO_PITCH) / AFTER_HIT;
+  if (p >= 1) return { ...crease, lift: 0 };
+
+  // Where the ball went, from the engine's own bearing for this delivery.
+  const reach = outcome.dismissal
+    ? 0.55
+    : outcome.is_boundary_six
+      ? 1.15
+      : outcome.is_boundary_four
+        ? 1.02
+        : 0.18 + outcome.runs * 0.16;
+  const bearing = outcome.direction_deg;
+  const eased = p * p * (3 - 2 * p);
+  return {
+    bearing: striker.bearing + bearing * eased,
+    radius: crease.radius + (reach - crease.radius) * eased,
+    lift: Math.sin(p * Math.PI) * (outcome.is_boundary_six ? 0.5 : 0.16),
+  };
+}
+
+/** Fielders closing on the ball once it is struck. */
+function fielderTo(slot: FieldSlot, ball: Ground, t: number): { bearing: number; radius: number } {
+  if (t < RUN_UP + TO_PITCH) return slot;
+  // Whoever is closest to the ball's line goes for it.
+  const d = Math.abs(((slot.bearing - ball.bearing + 540) % 360) - 180);
+  const close = Math.min(1, (180 - d) / 90);
+  const travel = Math.min(slot.pace / AFTER_HIT, t / AFTER_HIT) * close * 0.45;
+  return {
+    bearing: slot.bearing,
+    radius: Math.max(0.1, slot.radius - travel),
+  };
+}
+
 export default function MatchView({
   snapshot,
   fielderNames,
   batterNames,
   dayNight = true,
 }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const raf = useRef(0);
-
-  const innings = snapshot?.innings[snapshot.current_innings] ?? null;
   const seed = snapshot?.seed ?? 1;
-  const over = innings ? Math.floor(innings.balls / 6) + 1 : 1;
 
-  /*
-    The newest delivery is the one being animated. `recent_balls` is newest-first
-    and capped, so the head of the list is the ball just bowled; the animation
-    restarts whenever its identity changes.
-  */
   const latest = snapshot?.recent_balls?.[0] ?? null;
-  const latestKey = latest ? JSON.stringify([latest.runs, latest.direction_deg, latest.commentary]) : "";
+  const latestKey = latest
+    ? JSON.stringify([latest.runs, latest.direction_deg, latest.commentary])
+    : "";
 
   // Deterministic field positions, nudged per match so two sides do not look
   // identical, but stable within one match.
@@ -83,306 +196,241 @@ export default function MatchView({
       return s / 4294967296;
     };
     return FIELD_SLOTS.map((slot) => ({
-      angle: slot.angle + (rand() - 0.5) * 0.14,
-      orbit: slot.orbit,
+      bearing: slot.bearing + (rand() - 0.5) * 14,
+      radius: slot.radius + (rand() - 0.5) * 0.05,
       pace: slot.pace,
     }));
   }, [seed]);
 
-  // Identity of the delivery currently being animated, and its clock.
-  const anim = useRef<{ key: string; t: number; outcome: BallOutcome | null }>({
-    key: "",
-    t: TOTAL,
-    outcome: null,
-  });
+  const names = useMemo(() => Object.values(fielderNames), [fielderNames]);
+  const [t, setT] = useState(TOTAL);
+  const anim = useRef({ key: "", t: TOTAL });
+  const raf = useRef(0);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = canvas.clientWidth * dpr;
-      canvas.height = canvas.clientHeight * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    resize();
-    // ResizeObserver is not universal (older WebViews, jsdom-based tests), and
-    // without it the whole match screen would unmount.
-    let observer: ResizeObserver | null = null;
-    let onWindowResize = false;
-    try {
-      if (typeof ResizeObserver === "function") {
-        observer = new ResizeObserver(resize);
-        observer.observe(canvas);
-      } else {
-        window.addEventListener("resize", resize);
-        onWindowResize = true;
-      }
-    } catch {
-      observer = null;
-      onWindowResize = false;
+    // A new delivery restarts the clock.
+    if (anim.current.key !== latestKey) {
+      anim.current = { key: latestKey, t: 0 };
+      setT(0);
     }
-
-    /** Where a bearing (degrees off the striker) points on the ground. */
-    const bearingVec = (deg: number) => {
-      // 0 = straight back past the bowler (up the screen), growing clockwise.
-      const rad = ((deg - 90) * Math.PI) / 180;
-      return { x: Math.cos(rad), y: Math.sin(rad) };
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      anim.current.t = Math.min(TOTAL, anim.current.t + dt);
+      setT(anim.current.t);
+      if (anim.current.t < TOTAL) raf.current = requestAnimationFrame(step);
     };
-
-    /** Ball position for time `t` within a delivery. */
-    const ballAt = (t: number, outcome: BallOutcome | null, cx: number, cy: number, R: number, pitchH: number) => {
-      const striker = { x: cx + 6, y: cy + pitchH * 0.3 };
-      const bowler = { x: cx - 6, y: cy - pitchH * 0.3 };
-
-      if (!outcome) {
-        // No delivery yet: the bowler just stands at the mark.
-        return { x: bowler.x, y: bowler.y, lift: 0 };
-      }
-
-      if (t < RUN_UP) {
-        // Run-up: the bowler moves in toward the crease.
-        const p = t / RUN_UP;
-        return { x: bowler.x - p * R * 0.18, y: bowler.y - p * pitchH * 0.1, lift: 0 };
-      }
-      if (t < RUN_UP + TO_PITCH) {
-        // In flight to the batter.
-        const p = (t - RUN_UP) / TO_PITCH;
-        return {
-          x: bowler.x + (striker.x - bowler.x) * p,
-          y: bowler.y + (striker.y - bowler.y) * p,
-          lift: Math.sin(p * Math.PI) * R * 0.16,
-        };
-      }
-
-      // Struck. Where it goes depends on the real outcome.
-      const after = t - (RUN_UP + TO_PITCH);
-      const p = Math.min(1, after / AFTER_HIT);
-      const v = bearingVec(outcome.direction_deg);
-      const runs = outcome.runs + outcome.extra_runs;
-      const distance =
-        outcome.is_boundary_six ? R * 0.98 : outcome.is_boundary_four ? R * 0.9 : R * (0.2 + runs * 0.08);
-      const loft = outcome.shot === "lofted";
-      const edged = outcome.shot === "edged";
-      return {
-        x: striker.x + v.x * distance * p,
-        y: striker.y + v.y * distance * p,
-        // Lofted shots arc high; edged ones dribble away low.
-        lift: loft
-          ? Math.sin(p * Math.PI) * R * 0.42
-          : edged
-            ? Math.sin(p * Math.PI) * R * 0.03
-            : 0,
-      };
-    };
-
-    const draw = () => {
-      const dt = 1 / 60;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      const cx = w / 2;
-      const cy = h / 2;
-      const R = Math.min(w, h) * 0.46;
-
-      // ---- advance the delivery clock ----
-      const a = anim.current;
-      if (latestKey && a.key !== latestKey) {
-        // A new delivery: start it from the run-up.
-        a.key = latestKey;
-        a.t = 0;
-        a.outcome = latest;
-      } else if (a.t < TOTAL) {
-        a.t += dt;
-      }
-
-      ctx.clearRect(0, 0, w, h);
-
-      // ---- field ----
-      const field = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
-      if (dayNight) {
-        field.addColorStop(0, "#2d7a3a");
-        field.addColorStop(0.75, "#22622c");
-        field.addColorStop(1, "#1a4d22");
-      } else {
-        field.addColorStop(0, "#3d9a4a");
-        field.addColorStop(0.75, "#2c7538");
-        field.addColorStop(1, "#215c2b");
-      }
-      ctx.fillStyle = field;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, R, R * 0.9, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // mown arcs
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, R, R * 0.9, 0, 0, Math.PI * 2);
-      ctx.clip();
-      for (let i = -6; i <= 6; i++) {
-        if (i % 2 !== 0) continue;
-        ctx.fillStyle = "rgba(255,255,255,0.025)";
-        ctx.fillRect(cx - R + (i / 6) * R, cy - R, R / 12, R * 2);
-      }
-      ctx.restore();
-
-      // ---- rope and crowd beyond it ----
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, R * 0.95, R * 0.855, 0, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Crowd: a speckled band outside the rope, as in the original's photo
-      // strip. Drawn only along the arc that is visible in the viewport.
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, R * 0.97, R * 0.875, 0, 0, Math.PI * 2);
-      ctx.arc(cx, cy, R * 1.16, 0, Math.PI * 2, true);
-      ctx.fillStyle = dayNight ? "#1d3a1e" : "#2b5c30";
-      ctx.fill("evenodd");
-      ctx.clip("evenodd");
-      let s = 987654321;
-      const rnd = () => {
-        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-        return s / 4294967296;
-      };
-      for (let i = 0; i < 900; i++) {
-        const ang = rnd() * Math.PI * 2;
-        const rr = R * (0.98 + rnd() * 0.16);
-        const x = cx + Math.cos(ang) * rr;
-        const y = cy + Math.sin(ang) * rr * 0.9;
-        const shade = 90 + rnd() * 110;
-        ctx.fillStyle = `rgba(${shade},${shade + 20},${shade - 10},0.55)`;
-        ctx.fillRect(x, y, 1.6, 1.6);
-      }
-      ctx.restore();
-
-      // ---- pitch ----
-      const pitchH = R * 0.34;
-      const pitchW = R * 0.075;
-      ctx.fillStyle = "#d9c39a";
-      ctx.fillRect(cx - pitchW, cy - pitchH, pitchW * 2, pitchH * 2);
-      ctx.fillStyle = "rgba(160,140,100,0.35)";
-      ctx.fillRect(cx - pitchW * 0.62, cy - pitchH * 0.9, pitchW * 1.24, pitchH * 1.8);
-      // creases
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
-      ctx.lineWidth = 1;
-      for (const dy of [-pitchH * 0.96, pitchH * 0.96]) {
-        ctx.beginPath();
-        ctx.moveTo(cx - pitchW * 0.75, cy + dy);
-        ctx.lineTo(cx + pitchW * 0.75, cy + dy);
-        ctx.stroke();
-      }
-
-      const pos = ballAt(a.t, a.outcome, cx, cy, R, pitchH);
-
-      // ---- fielders: dots with surnames, as the original draws them ----
-      // Each fielder chases the ball once it is struck; before that they hold
-      // their station, so the field visibly changes shape during a shot.
-      const struck = a.t > RUN_UP + TO_PITCH && !!a.outcome;
-      ctx.font = "600 10px 'Segoe UI', Tahoma, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      slots.forEach((slot, i) => {
-        let fx = cx + Math.cos(slot.angle) * slot.orbit * R * 1.02;
-        let fy = cy + Math.sin(slot.angle) * slot.orbit * R * 0.9;
-
-        if (struck && a.outcome) {
-          // Move toward the ball's line, closing the gap over the flight.
-          const p = Math.min(1, (a.t - RUN_UP - TO_PITCH) / AFTER_HIT);
-          const v = bearingVec(a.outcome.direction_deg);
-          // Only fielders roughly on the ball's line react.
-          const dx = Math.cos(slot.angle);
-          const dy = Math.sin(slot.angle);
-          const align = dx * v.x + dy * v.y;
-          if (align > 0.35) {
-            const chase = p * align * slot.orbit * R * 0.5;
-            fx += v.x * chase;
-            fy += v.y * chase * 0.9;
-          }
-        }
-
-        ctx.fillStyle = "#e9eef4";
-        ctx.beginPath();
-        ctx.arc(fx, fy, 2.6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(0,0,0,0.5)";
-        ctx.lineWidth = 0.6;
-        ctx.stroke();
-
-        const name = fielderNames[i];
-        if (name) {
-          ctx.fillStyle = "#e8e600";
-          ctx.fillText(name, fx + 4, fy);
-        }
-      });
-
-      // ---- umpires ----
-      ctx.fillStyle = "#8fd0ff";
-      for (const dy of [-pitchH * 1.12, pitchH * 1.12]) {
-        ctx.beginPath();
-        ctx.arc(cx - pitchW * 1.6, cy + dy, 2.4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // ---- batters ----
-      const strikerId = snapshot?.striker_id ?? null;
-      const nonStrikerId = snapshot?.non_striker_id ?? null;
-      ctx.fillStyle = "#e04a56";
-      ctx.beginPath();
-      ctx.arc(cx + 5, cy + pitchH * 0.96, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#4a90e0";
-      ctx.beginPath();
-      ctx.arc(cx + 5, cy + pitchH * 0.55, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#e8e600";
-      ctx.fillText(batterNames[strikerId ?? 0] ?? "", cx + 11, cy + pitchH * 0.96);
-      ctx.fillText(batterNames[nonStrikerId ?? 0] ?? "", cx + 11, cy + pitchH * 0.55);
-
-      // ---- bowler ----
-      ctx.fillStyle = "#e04a56";
-      ctx.beginPath();
-      ctx.arc(pos.x - (a.t < RUN_UP ? R * 0.18 : 0), cy - pitchH * 1.1, 2.8, 0, Math.PI * 2);
-      ctx.fill();
-
-      // ---- the ball ----
-      // Only draw it once it is in play; a ball sitting at the bowler's end
-      // before the delivery is just the mark.
-      if (a.outcome && a.t > RUN_UP * 0.8) {
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y - pos.lift, 2.6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(0,0,0,0.6)";
-        ctx.lineWidth = 0.7;
-        ctx.stroke();
-      }
-
-      raf.current = requestAnimationFrame(draw);
-    };
-
-    raf.current = requestAnimationFrame(draw);
+    if (typeof requestAnimationFrame === "function") {
+      raf.current = requestAnimationFrame(step);
+    }
     return () => {
-      cancelAnimationFrame(raf.current);
-      if (observer) {
-        observer.disconnect();
-      } else if (onWindowResize) {
-        window.removeEventListener("resize", resize);
-      }
+      if (raf.current) cancelAnimationFrame(raf.current);
     };
-  }, [slots, fielderNames, batterNames, dayNight, latestKey, latest, innings, over, snapshot?.striker_id, snapshot?.non_striker_id]);
+  }, [latestKey]);
+
+  const settled = t >= TOTAL;
+  const ball = ballAt(t, latest);
+  const ballPt = project(ball);
+  const boundary = boundaryPath();
+
+  const fielders = slots.map((slot, i) => {
+    const at = fielderTo(slot, ball, t);
+    const p = project(at);
+    const name = names[i] ?? "";
+    return { p, name, key: i };
+  });
+
+  const strikerPt = project({ bearing: 180, radius: 0.055 });
+  const nonStrikerPt = project({ bearing: 180, radius: 0.42 });
+  const bowlerPt = project(ballAt(Math.min(t, RUN_UP), null));
+  const batterEntries = Object.values(batterNames);
 
   return (
-    <div className="groundwrap">
-      <canvas
-        ref={canvasRef}
-        className="groundcanvas"
-        aria-label="Overhead 2D match view"
+    <svg
+      className="ground"
+      viewBox="0 0 1000 640"
+      preserveAspectRatio="xMidYMid slice"
+      role="img"
+      aria-label="Cricket ground with fielders and the ball"
+      data-testid="ground"
+      data-delivery={settled ? "settled" : "bowling"}
+    >
+      <defs>
+        {/*
+          The crowd. The original's stands are a dense speckle of small
+          coloured dots on blue, which is what sells it as a full house rather
+          than a painted backdrop.
+        */}
+        <pattern id="crowd" width="6" height="5" patternUnits="userSpaceOnUse">
+          <rect width="6" height="5" fill="#6d8ab4" />
+          {[
+            [1, 1, "#dfe3ea"], [4, 1, "#b8454a"], [2.6, 3, "#e9e4c8"],
+            [5, 3.4, "#dfe3ea"], [0.4, 3.8, "#33456b"],
+          ].map(([x, y, fill], i) => (
+            <circle key={i} cx={x} cy={y} r="0.85" fill={fill as string} />
+          ))}
+        </pattern>
+        {/* Rows of seating, which is what gives the stands their banding. */}
+        <pattern id="seats" width="6" height="5" patternUnits="userSpaceOnUse">
+          <rect width="6" height="5" fill="url(#crowd)" />
+          <rect width="6" height="1.6" fill="#20304f" opacity="0.35" />
+        </pattern>
+        {/* Mown stripes across the outfield, as the original cuts them. */}
+        <pattern id="stripes" width="52" height="52" patternUnits="userSpaceOnUse"
+                 patternTransform="rotate(-18)">
+          <rect width="52" height="52" fill="#4a7a45" />
+          <rect width="26" height="52" fill="#548550" />
+        </pattern>
+        <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.72">
+          <stop offset="60%" stopColor="#000" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000" stopOpacity="0.45" />
+        </radialGradient>
+        <clipPath id="groundClip">
+          <path d={boundary} />
+        </clipPath>
+      </defs>
+
+      {/* Stands: a band across the top, behind the boundary. */}
+      <rect x="0" y="0" width="1000" height="640" fill="url(#seats)" />
+      {dayNight && (
+        <g className="ground__floodlights" opacity="0.5">
+          <circle cx="150" cy="60" r="2.5" fill="#fff" />
+          <circle cx="850" cy="40" r="2.5" fill="#fff" />
+        </g>
+      )}
+
+      {/*
+        Boundary advertising, then the rope.
+
+        The original rings the ground with sponsor boards between the rope and
+        the stands. Drawn as a stroke on the boundary path rather than as a
+        separate shape so it follows the perspective for free.
+      */}
+      <path
+        d={boundary}
+        fill="none"
+        stroke="#1b2740"
+        strokeWidth="54"
+        opacity="0.97"
       />
-    </div>
+      <path d={boundary} fill="none" stroke="#2c3c5e" strokeWidth="2" opacity="0.8" />
+      {/*
+        Sponsor names along the top of the advertising ring.
+
+        Set horizontally rather than rotated along the boundary. Rotating them
+        by the local tangent put one board at a steep angle half off the frame
+        and pushed the rest outside it, which read as a rendering fault rather
+        than as perspective. The original's boards do follow the curve, but at
+        this projection they are not legible enough for that to be worth it.
+      */}
+      <g className="ground__ads" opacity="0.92">
+        {ADS.map((ad, i) => {
+          const p = project({ bearing: 258 + i * 15, radius: 1.06 });
+          return (
+            <text
+              key={ad}
+              x={p.x}
+              y={p.y}
+              fill={i % 3 === 0 ? "#e8fd00" : i % 3 === 1 ? "#e04a4a" : "#f0f0f0"}
+              fontSize="15"
+              fontWeight="700"
+              textAnchor="middle"
+            >
+              {ad}
+            </text>
+          );
+        })}
+      </g>
+
+      {/* The outfield. */}
+      <path d={boundary} fill="url(#stripes)" />
+      <g clipPath="url(#groundClip)">
+        {/* The square, cut differently from the rest of the ground. */}
+        <ellipse cx={CX} cy={CY - 10} rx={RX * 0.3} ry={RY * 0.5} fill="#5b8f52" opacity="0.75" />
+        {/* Thirty-yard circle. */}
+        <ellipse
+          cx={CX} cy={CY} rx={RX * 0.34} ry={RY * 0.34}
+          fill="none" stroke="#ffffff" strokeWidth="1.2" opacity="0.28"
+        />
+      </g>
+      <path d={boundary} fill="none" stroke="#e8e8e8" strokeWidth="2.4" opacity="0.9" />
+
+      {/* The pitch, drawn as a trapezoid because it recedes. */}
+      <g className="ground__pitch">
+        <path
+          d={`M${strikerPt.x - 34} ${strikerPt.y}
+              L${strikerPt.x + 34} ${strikerPt.y}
+              L${bowlerPt.x + 24} ${bowlerPt.y}
+              L${bowlerPt.x - 24} ${bowlerPt.y} Z`}
+          fill="#c8b98a"
+          stroke="#a8975f"
+          strokeWidth="1"
+        />
+        {/* Creases and stumps. */}
+        <line
+          x1={strikerPt.x - 30} y1={strikerPt.y} x2={strikerPt.x + 30} y2={strikerPt.y}
+          stroke="#f0f0f0" strokeWidth="1.4"
+        />
+        <line
+          x1={bowlerPt.x - 22} y1={bowlerPt.y} x2={bowlerPt.x + 22} y2={bowlerPt.y}
+          stroke="#f0f0f0" strokeWidth="1.4"
+        />
+        <circle cx={bowlerPt.x} cy={bowlerPt.y - 4} r="2" fill="#f5f5f5" />
+      </g>
+
+      {/* Fielders, each labelled with their surname as the original does. */}
+      <g className="ground__fielders">
+        {fielders.map((f) => (
+          <g key={f.key} data-testid="fielder">
+            <circle cx={f.p.x} cy={f.p.y} r="4.5" fill="#e8fd00" stroke="#20200f" strokeWidth="1" />
+            {f.name && (
+              <text
+                x={f.p.x}
+                y={f.p.y - 9}
+                className="ground__fname"
+                textAnchor="middle"
+                fontSize="11"
+              >
+                {f.name}
+              </text>
+            )}
+          </g>
+        ))}
+      </g>
+
+      {/* The two batters and the bowler. */}
+      <g className="ground__batters">
+        <circle cx={strikerPt.x} cy={strikerPt.y} r="4" fill="#ff6b6b" stroke="#3a0d0d" strokeWidth="1" />
+        <circle cx={nonStrikerPt.x} cy={nonStrikerPt.y} r="3.4" fill="#ff9d9d" stroke="#3a0d0d" strokeWidth="1" />
+        <circle cx={bowlerPt.x} cy={bowlerPt.y} r="3.4" fill="#6bb5ff" stroke="#0d1f3a" strokeWidth="1" />
+        {batterEntries[0] && (
+          <text x={strikerPt.x} y={strikerPt.y - 9} className="ground__fname" textAnchor="middle" fontSize="11">
+            {batterEntries[0]}
+          </text>
+        )}
+      </g>
+
+      {/* The ball. `lift` rises off the ground for a lofted shot. */}
+      <circle
+        className="ground__ball"
+        data-testid="ball"
+        cx={ballPt.x}
+        cy={ballPt.y - ball.lift * 70}
+        r="3.6"
+        fill="#fff"
+        stroke="#222"
+        strokeWidth="0.8"
+      />
+
+      <rect x="0" y="0" width="1000" height="640" fill="url(#vignette)" pointerEvents="none" />
+    </svg>
   );
+}
+
+/** The over number, for the score bar. Kept here so the view stays self-contained. */
+export function overNumber(snapshot: MatchSnapshot | null): number {
+  const innings = snapshot?.innings[snapshot.current_innings];
+  if (!innings) return 1;
+  return Math.floor(innings.balls / 6) + 1;
 }
