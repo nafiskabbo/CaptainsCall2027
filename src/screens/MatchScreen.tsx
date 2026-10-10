@@ -1,8 +1,9 @@
 //! Match screen — 2D ground, live tactics, scorecards.
 //! Layout modelled on Cricket Coach 2014's match/scoreboard screens.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../tools/api";
+import { cueForBall, sound } from "../lib/audio";
 import type {
   FieldPreset,
   Format,
@@ -178,6 +179,53 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
   const homeTeam = world.teams.find((t) => t.id === snapshot.home_team_id);
   const awayTeam = world.teams.find((t) => t.id === snapshot.away_team_id);
 
+  // ---- sound ----
+  // Play a cue whenever the engine reports deliveries the UI has not seen yet.
+  // `recent_balls` is newest-first and capped, so we track how many have been
+  // consumed per innings rather than diffing the array.
+  const soundRef = useRef<{ innings: number; seen: number; phase: string }>({
+    innings: -1,
+    seen: 0,
+    phase: "pre_match",
+  });
+  useEffect(() => {
+    const balls = snapshot.recent_balls ?? [];
+    const marker = soundRef.current;
+    if (snapshot.current_innings !== marker.innings) {
+      // A new innings: reset the counter rather than replaying old balls.
+      soundRef.current = { innings: snapshot.current_innings, seen: balls.length, phase: snapshot.phase };
+      if (marker.innings !== -1 && marker.phase !== "complete") sound.play("inningsEnd");
+      return;
+    }
+    const fresh = balls.length - marker.seen;
+    if (fresh > 0) {
+      // Newest-first, so play the newest cue and cap at a couple so a fast
+      // forward does not machine-gun.
+      for (const ball of balls.slice(0, Math.min(fresh, 2))) {
+        sound.play(cueForBall(ball));
+      }
+      soundRef.current = { ...marker, seen: balls.length };
+    }
+    if (snapshot.phase === "complete" && marker.phase !== "complete") {
+      sound.play("matchEnd");
+    }
+    soundRef.current.phase = snapshot.phase;
+  }, [snapshot]);
+
+  const [soundOn, setSoundOn] = useState(sound.getSettings().enabled);
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    sound.setEnabled(next);
+    if (next) sound.play("uiClick");
+  };
+
+  // Browsers only allow audio after a user gesture, so ask the engine to arm
+  // its unlock listeners the first time the match screen mounts.
+  useEffect(() => {
+    sound.unlock();
+  }, []);
+
   return (
     <div className="match">
       {/* innings strip */}
@@ -303,6 +351,14 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
               >
                 To result</Button>
               <span className="sidebar__spacer" />
+              <Button
+                variant="ghost"
+                onClick={toggleSound}
+                title={soundOn ? "Mute match sound" : "Enable match sound"}
+                aria-pressed={soundOn}
+              >
+                {soundOn ? "Sound on" : "Sound off"}
+              </Button>
               <Button variant="ghost" onClick={exportCard}>Export scorecard</Button>
             </div>
             {complete && (

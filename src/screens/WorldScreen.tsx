@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../tools/api";
 import type { DbPackInfo, Player, Team, World } from "../types";
+import { sound } from "../lib/audio";
 import UpdatePanel from "./UpdatePanel";
 import { Button } from "../ui";
 
@@ -42,6 +43,13 @@ export default function WorldScreen({ world, onStartCareer, onWorldChanged }: Pr
   const [packs, setPacks] = useState<DbPackInfo[]>([]);
   const [packKey, setPackKey] = useState<string>("");
   const [switching, setSwitching] = useState(false);
+  const [audio, setAudio] = useState(sound.getSettings());
+
+  // Arm the audio unlock listeners: browsers refuse to start an AudioContext
+  // before a user gesture, which would leave the game silent.
+  useEffect(() => {
+    sound.unlock();
+  }, []);
 
   useEffect(() => {
     api
@@ -156,6 +164,35 @@ export default function WorldScreen({ world, onStartCareer, onWorldChanged }: Pr
               </p>
             </div>
           ))}
+        <div className="setuprow">
+          <span className="setuprow__label">Match sound</span>
+          <div className="setuprow__control">
+            <label className="radio" title="Bat on leather, crowd and wicket cues">
+              <input
+                type="checkbox"
+                checked={audio.on}
+                onChange={(e) => {
+                  sound.setEnabled(e.target.checked);
+                  setAudio(sound.getSettings());
+                  if (e.target.checked) sound.play("uiClick");
+                }}
+              />
+              Sound effects
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(audio.volume * 100)}
+              onChange={(e) => {
+                sound.setVolume(Number(e.target.value) / 100);
+                setAudio(sound.getSettings());
+              }}
+              aria-label="Sound volume"
+              title="Volume"
+            />
+          </div>
+        </div>
       </section>
 
       <section className="panel">

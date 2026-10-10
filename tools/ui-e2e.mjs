@@ -416,6 +416,41 @@ async function scenarioDatabasePacks({ window, calls }) {
   );
 }
 
+/**
+ * Sound settings.
+ *
+ * jsdom has no AudioContext, which is exactly the degraded host the sound
+ * engine has to survive: the controls must still work and the match must still
+ * play rather than throwing. This also covers the standing rule that a control
+ * must never be decorative.
+ */
+async function scenarioSound({ window }) {
+  currentScenario = "sound";
+  await until("world screen", () => hasText(window, "Setup Career"));
+
+  const toggle = $(window, 'input[aria-label="Sound volume"]');
+  check("volume control present", !!toggle, "no sound volume slider");
+  check(
+    "sound toggle present",
+    $$(window, "input[type=checkbox]").length > 0,
+    "expected a sound on/off checkbox",
+  );
+
+  // Toggling must not throw even with no AudioContext available.
+  const boxes = $$(window, 'input[type="checkbox"]');
+  let threw = false;
+  try {
+    if (boxes[boxes.length - 1]) {
+      boxes[boxes.length - 1].checked = true;
+      boxes[boxes.length - 1].dispatchEvent(new window.Event("click", { bubbles: true }));
+      await delay(120);
+    }
+  } catch {
+    threw = true;
+  }
+  check("toggling sound does not throw without an AudioContext", !threw);
+}
+
 async function scenarioCareerControls({ window, calls }) {
   currentScenario = "career controls";
   const ff = buttons(window, /fast forward/i)[0];
@@ -714,6 +749,7 @@ async function main() {
     // Runs last: it quits to the main menu to swap the database, which would
     // invalidate any career the earlier scenarios set up.
     await scenarioDatabasePacks(booted);
+    await scenarioSound(booted);
 
     const failures = results.filter((r) => !r.pass);
     const byScenario = new Map();
