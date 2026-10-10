@@ -1,12 +1,9 @@
-//! App chrome: top bar (clock / title / flags), left sidebar, bottom action bar.
-//! Mirrors the Cricket Coach 2014 desktop layout.
-
 import type { ReactNode } from "react";
 
 export interface SidebarItem {
   id: string;
   label: string;
-  icon: "news" | "team" | "intl" | "dom" | "search" | "rank" | "records" | "jobs" | "options" | "save";
+  icon: string;
   badge?: number;
   active?: boolean;
   onClick?: () => void;
@@ -25,6 +22,10 @@ interface Props {
   children: ReactNode;
 }
 
+/**
+ * App chrome: blue-gradient top bar (clock / title / flags), the original's
+ * icon sidebar, the green field backdrop and the bottom action bar.
+ */
 export default function AppShell({
   clock,
   clockTitle,
@@ -60,26 +61,21 @@ export default function AppShell({
             <button
               key={item.id}
               type="button"
-              className={`navrow navrow--${item.icon} ${
-                item.active ? "navrow--active" : ""
-              }`}
+              className={`navrow ${item.active ? "navrow--active" : ""}`}
               onClick={item.onClick}
               aria-current={item.active ? "page" : undefined}
             >
               <span className="navrow__icon" aria-hidden="true">
-                {iconGlyph(item.icon)}
+                {item.icon}
               </span>
               <span className="navrow__label">{item.label}</span>
-              {item.badge ? (
-                <span className="navrow__badge">{item.badge}</span>
-              ) : null}
+              {item.badge ? <span className="navrow__badge">{item.badge}</span> : null}
             </button>
           ))}
         </div>
 
         {quickSearch && <div className="sidebar__quicksearch">{quickSearch}</div>}
         <div className="sidebar__spacer" />
-        <div className="sidebar__section" />
       </nav>
 
       <div className="content">
@@ -89,31 +85,4 @@ export default function AppShell({
       <div className="actionbar">{actionBar}</div>
     </div>
   );
-}
-
-function iconGlyph(icon: SidebarItem["icon"]): string {
-  switch (icon) {
-    case "news":
-      return "✉";
-    case "team":
-      return "●";
-    case "intl":
-      return "🌐";
-    case "dom":
-      return "▤";
-    case "search":
-      return "⌕";
-    case "rank":
-      return "●";
-    case "records":
-      return "●";
-    case "jobs":
-      return "✎";
-    case "options":
-      return "✓";
-    case "save":
-      return "▣";
-    default:
-      return "●";
-  }
 }

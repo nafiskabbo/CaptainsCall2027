@@ -12,6 +12,11 @@ interface Props {
   onCareer: (view: CareerView) => void;
   onPlay: (snapshot: MatchSnapshot) => void;
   onOffSeason: () => void;
+  /** Controlled from the sidebar so nav rows and tabs stay in sync. */
+  tab: string;
+  onTab: (tab: string) => void;
+  /** Squad filter from the sidebar's quick search. */
+  searchQuery: string;
 }
 
 function teamName(world: World, id: number): string {
@@ -28,10 +33,11 @@ export default function CareerScreen({
   onCareer,
   onPlay,
   onOffSeason,
+  tab,
+  onTab,
+  searchQuery,
 }: Props) {
-  const [tab, setTab] = useState<
-    "today" | "table" | "records" | "news" | "squad" | "saves"
-  >("today");
+  const setTab = onTab as (t: string) => void;
   const [filter, setFilter] = useState<"all" | "mine">("all");
   const [saves, setSaves] = useState<SaveSummary[]>([]);
   const [busy, setBusy] = useState(false);
@@ -147,42 +153,50 @@ export default function CareerScreen({
       {status && <p className="muted">{status}</p>}
 
       <section className="panel panel--flush">
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 0.6rem 0" }}>
-          {(
-            [
-              ["today", "Fixtures"],
-              ["table", "Table"],
-              ["records", "Records"],
-              ["news", "News"],
-              ["squad", "Squad"],
-              ["saves", "Saves"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              className={`tab ${tab === key ? "tab--active" : ""}`}
-              onClick={() => setTab(key)}
-            >
-              {label}
-            </button>
-          ))}
-          <span className="sidebar__spacer" />
-          <label htmlFor="filter" className="muted" style={{ margin: 0 }}>
-            Filter
-          </label>
-          <select
-            id="filter"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as "all" | "mine")}
-            style={{ width: 150 }}
-          >
-            <option value="all">All leagues</option>
-            <option value="mine">My team</option>
-          </select>
+        <div className="panel__head">
+          <span className="panel__label--gold">{tabLabel(tab)}</span>
+          <div className="panel__headactions">
+            {tab === "today" && (
+              <>
+                <label htmlFor="filter" className="muted" style={{ margin: 0 }}>
+                  Filter
+                </label>
+                <select
+                  id="filter"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value as "all" | "mine")}
+                  style={{ width: 140 }}
+                >
+                  <option value="all">All leagues</option>
+                  <option value="mine">My team</option>
+                </select>
+              </>
+            )}
+            {(
+              [
+                ["today", "Fixtures"],
+                ["table", "Table"],
+                ["records", "Records"],
+                ["news", "News"],
+                ["squad", "Squad"],
+                ["saves", "Saves"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`tab ${tab === key ? "tab--active" : ""}`}
+                onClick={() => setTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        <div style={{ padding: "0.5rem 0.55rem 0.7rem" }}>
         {tab === "today" && (
-          <div style={{ padding: "0.5rem 0.2rem 0.7rem" }}>
+          <div>
             {days
               .filter((d) => (filter === "mine" ? dayHasMyTeam(state.fixtures, d, myTeamId) : true))
               .map((day) => (
@@ -348,7 +362,7 @@ export default function CareerScreen({
               </tr>
             </thead>
             <tbody>
-              <SquadRows world={world} teamId={myTeamId} />
+              <SquadRows world={world} teamId={myTeamId} searchQuery={searchQuery} />
             </tbody>
           </table>
         )}
@@ -391,9 +405,23 @@ export default function CareerScreen({
             </tbody>
           </table>
         )}
+        </div>
       </section>
     </div>
   );
+}
+
+const TAB_LABELS: Record<string, string> = {
+  today: "Fixtures",
+  table: "Table",
+  records: "Records",
+  news: "News",
+  squad: "Squad",
+  saves: "Saves",
+};
+
+function tabLabel(tab: string): string {
+  return TAB_LABELS[tab] ?? "Fixtures";
 }
 
 function NextMatchCard({
@@ -438,7 +466,15 @@ function NextMatchCard({
   );
 }
 
-function SquadRows({ world, teamId }: { world: World; teamId: number }) {
+function SquadRows({
+  world,
+  teamId,
+  searchQuery,
+}: {
+  world: World;
+  teamId: number;
+  searchQuery: string;
+}) {
   const [players, setPlayers] = useState(
     world.players.filter((p) => p.team_id === teamId),
   );
@@ -449,6 +485,12 @@ function SquadRows({ world, teamId }: { world: World; teamId: number }) {
       .then(setPlayers)
       .catch(() => undefined);
   }, [teamId]);
+
+  // Quick search from the sidebar filters the squad list.
+  const q = searchQuery.trim().toLowerCase();
+  const visible = q
+    ? players.filter((p) => p.name.toLowerCase().includes(q))
+    : players;
 
   if (players.length === 0) {
     return (
@@ -462,7 +504,7 @@ function SquadRows({ world, teamId }: { world: World; teamId: number }) {
 
   return (
     <>
-      {players.map((p) => {
+      {visible.map((p) => {
         const bestSkill = Math.max(p.skills.bat, p.skills.pace, p.skills.spin);
         const bestPotential = Math.max(p.potential.bat, p.potential.pace, p.potential.spin);
         const headroom = bestPotential - bestSkill;

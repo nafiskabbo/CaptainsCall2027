@@ -114,7 +114,7 @@ export default function OffSeasonScreen({
   return (
     <div className="stack">
       <section className="panel">
-        <h2 className="panel__title">Off-season · Season {career.state.season} complete</h2>
+        <div className="panel__head"><span className="panel__label--gold">Off-season · Season {career.state.season} complete</span></div>
         <p className="muted">
           Roll over into season {career.state.season + 1}: players age, retirees are
           announced, the academy replenishes squads and a fresh fixture list is drawn.
@@ -140,7 +140,7 @@ export default function OffSeasonScreen({
 
       {finances && (
         <section className="panel">
-          <h3 className="panel__title">Club finances</h3>
+          <div className="panel__head"><span className="panel__label--gold">Club finances</span></div>
           <div className="statgrid">
             <div className="stat">
               <div className="stat__label">Budget</div>

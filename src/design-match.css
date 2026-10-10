@@ -1,0 +1,365 @@
+/* ============================================================
+   Match screen + career screens
+   ============================================================ */
+
+.match {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ---- innings strip ---- */
+.inningsstrip {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.inningsstrip__item {
+  padding: 0.18rem 0.66rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  background: rgba(46, 107, 184, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.inningsstrip__item--active {
+  color: #fff;
+  font-weight: 600;
+  background: linear-gradient(180deg, #4a8ad4, #22529a);
+  border-color: #08152c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.inningsstrip__spacer {
+  flex: 1;
+}
+
+.match__body {
+  display: grid;
+  grid-template-columns: 1fr minmax(264px, 315px);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+@media (max-width: 1160px) {
+  .match__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- 2D ground ---- */
+.groundwrap {
+  position: relative;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  border-radius: 3px;
+  overflow: hidden;
+  background: #04120a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.groundcanvas {
+  display: block;
+  width: 100%;
+  height: 440px;
+}
+
+/* commentary stack over the ground */
+.commentary-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 33px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 1.4rem;
+  pointer-events: none;
+}
+
+.commentary-overlay__line {
+  max-width: 80%;
+  padding: 0.14rem 0.68rem;
+  font-size: 0.8rem;
+  color: #f2f6fa;
+  background: rgba(2, 20, 4, 0.66);
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commentary-overlay__line--event {
+  background: linear-gradient(180deg, #4fbf6a, #1f7a2e);
+  font-weight: 700;
+  color: #04210a;
+}
+
+.commentary-overlay__line--ball {
+  align-self: flex-end;
+  background: rgba(2, 20, 4, 0.8);
+  border-left: 3px solid var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* partnership tag */
+.groundtag {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  padding: 0.28rem 0.85rem;
+  text-align: right;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(150, 110, 220, 0.88), rgba(70, 45, 140, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+
+.groundtag b {
+  display: block;
+  font-size: 0.82rem;
+}
+
+/* bottom scorebar */
+.scorebar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.26rem 0.85rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(2, 16, 26, 0.5), rgba(2, 10, 18, 0.93));
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.scorebar__team {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+
+.scorebar__score {
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.scorebar__overs {
+  font-size: 0.77rem;
+  color: var(--ink-dim);
+  margin-left: -0.45rem;
+}
+
+.scorebar__batters {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.05rem;
+  min-width: 0;
+}
+
+.scorebar__batter {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.scorebar__batter b {
+  color: var(--gold);
+}
+
+.scorebar__batter span {
+  color: #fff;
+  font-weight: 700;
+}
+
+.scorebar__batter small {
+  color: var(--ink-faint);
+}
+
+/* ---- Manhattan chart ---- */
+.manhattan {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 92px;
+  padding: 0.28rem 0.38rem 0;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.manhattan__col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  position: relative;
+  min-width: 3px;
+}
+
+.manhattan__bar {
+  width: 100%;
+  background: linear-gradient(180deg, #6fb7e8, #2f6f9f);
+  border-radius: 1px 1px 0 0;
+}
+
+.manhattan__bar--wicket {
+  background: linear-gradient(180deg, #e07a6a, var(--red));
+}
+
+.manhattan__w {
+  font-size: 0.57rem;
+  font-weight: 700;
+  color: #ffd9d2;
+  line-height: 1;
+}
+
+.manhattan__axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  color: var(--ink-faint);
+  padding: 0.08rem 0.38rem 0;
+}
+
+/* ============================================================
+   Career / fixtures screen
+   ============================================================ */
+
+.fixtureday {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(46, 107, 184, 0.32);
+  border-left: 3px solid var(--blue-400);
+  border-radius: 0 3px 3px 0;
+}
+
+.fixturerow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto auto;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.36rem 0.6rem;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--ink);
+  text-align: left;
+  background: rgba(0, 12, 2, 0.5);
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+}
+
+.fixturerow:hover {
+  background: rgba(46, 107, 184, 0.2);
+}
+
+.fixturerow--mine {
+  background: rgba(46, 107, 184, 0.16);
+  box-shadow: inset 3px 0 0 var(--blue-400);
+}
+
+.fixturerow__team {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixturerow__team--away {
+  text-align: right;
+}
+
+.fixturerow__vs {
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  min-width: 62px;
+  text-align: center;
+}
+
+.fixturerow__status {
+  min-width: 62px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.fixturerow__venue {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  text-align: right;
+  max-width: 152px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- selection screen ---- */
+.selection__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+}
+
+.selection__headactions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.selection__stats {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.65rem;
+}
+
+.selection__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ---- html scorecard preview ---- */
+.htmlpreview {
+  width: 100%;
+  height: 320px;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}

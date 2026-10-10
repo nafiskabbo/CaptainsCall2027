@@ -70,7 +70,7 @@ export default function TrainingScreen({ career, onSaved }: Props) {
   return (
     <div className="stack">
       <section className="panel">
-        <h3 className="panel__title">Training focus</h3>
+        <div className="panel__head"><span className="panel__label--gold">Training focus</span></div>
         <p className="muted">
           Pick what the squad works on between matches. The focus multiplies how
           quickly the matching skills improve over the season.
@@ -97,7 +97,7 @@ export default function TrainingScreen({ career, onSaved }: Props) {
       </section>
 
       <section className="panel">
-        <h3 className="panel__title">Development prospects</h3>
+        <div className="panel__head"><span className="panel__label--gold">Development prospects</span></div>
         <table className="data">
           <thead>
             <tr>
@@ -134,7 +134,7 @@ export default function TrainingScreen({ career, onSaved }: Props) {
       </section>
 
       <section className="panel">
-        <h3 className="panel__title">Nearing retirement</h3>
+        <div className="panel__head"><span className="panel__label--gold">Nearing retirement</span></div>
         <table className="data">
           <thead>
             <tr>

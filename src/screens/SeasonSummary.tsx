@@ -43,7 +43,7 @@ export default function SeasonSummary({ world, career, onOffSeason, onSave }: Pr
   return (
     <div className="stack">
       <section className="panel">
-        <h2 className="panel__title">Season {career.state.season} complete</h2>
+        <div className="panel__head"><span className="panel__label--gold">Season {career.state.season} complete</span></div>
         <p style={{ fontSize: "1.05rem" }}>
           {champions ? (
             <>
@@ -86,7 +86,7 @@ export default function SeasonSummary({ world, career, onOffSeason, onSave }: Pr
       </section>
 
       <section className="panel">
-        <h3 className="panel__title">Season awards</h3>
+        <div className="panel__head"><span className="panel__label--gold">Season awards</span></div>
         <table className="data">
           <tbody>
             <tr>
@@ -112,7 +112,7 @@ export default function SeasonSummary({ world, career, onOffSeason, onSave }: Pr
       </section>
 
       <section className="panel">
-        <h3 className="panel__title">Final table</h3>
+        <div className="panel__head"><span className="panel__label--gold">Final table</span></div>
         <table className="data">
           <thead>
             <tr>

@@ -18,6 +18,9 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("setup");
   const [career, setCareer] = useState<CareerView | null>(null);
   const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
+  /** Sidebar-driven tab + squad search, shared with CareerScreen. */
+  const [careerTab, setCareerTab] = useState("fixtures");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     Promise.all([api.getAppInfo(), api.getWorld()])
@@ -48,6 +51,8 @@ export default function App() {
   const startCareer = async (teamId: number, name: string, seed: number) => {
     const view = await api.startCareer({ teamId, name, seed });
     setCareer(view);
+    setCareerTab("fixtures");
+    setQuery("");
     setScreen("career");
   };
 
@@ -86,12 +91,11 @@ export default function App() {
   if (screen === "career" && career) {
     const nation = world.nations.find((n) => n.id === career.state.nation_id);
     const items: SidebarItem[] = [
-      { id: "news", label: "Club News", icon: "news", active: true },
-      { id: "team", label: nation?.name ?? "Team", icon: "team" },
-      { id: "dom", label: "Domestic", icon: "dom" },
-      { id: "search", label: "Search", icon: "search" },
-      { id: "rank", label: "Rankings", icon: "rank" },
-      { id: "records", label: "Records", icon: "records" },
+      { id: "fixtures", label: "Fixtures", icon: "▤", active: true },
+      { id: "table", label: "Table", icon: "▮", onClick: () => setCareerTab("table") },
+      { id: "records", label: "Records", icon: "▮", onClick: () => setCareerTab("records") },
+      { id: "squad", label: "Squad", icon: "●", onClick: () => setCareerTab("squad") },
+      { id: "news", label: "News", icon: "✉", onClick: () => setCareerTab("news") },
     ];
 
     return (
@@ -103,9 +107,13 @@ export default function App() {
         homeFlag={(nation?.short_name ?? "CC").slice(0, 3).toUpperCase()}
         items={items}
         quickSearch={
-          <>
-            <input type="text" placeholder="Search players, teams…" aria-label="Search" />
-          </>
+          <input
+            type="text"
+            placeholder="Search squad…"
+            aria-label="Search players"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         }
         actionBar={
           <>
@@ -160,6 +168,9 @@ export default function App() {
           world={world}
           career={career}
           onCareer={setCareer}
+          tab={careerTab}
+          onTab={setCareerTab}
+          searchQuery={query}
           onPlay={(snap) => {
             setSnapshot(snap);
             setScreen("match");
@@ -181,8 +192,8 @@ export default function App() {
           .slice(0, 3)
           .toUpperCase()}
         items={[
-          { id: "news", label: "Season review", icon: "news", active: true },
-          { id: "records", label: "Records", icon: "records" },
+          { id: "news", label: "Season review", icon: "✉", active: true },
+          { id: "records", label: "Records", icon: "▮" },
         ]}
         actionBar={
           <>
@@ -226,8 +237,8 @@ export default function App() {
           .slice(0, 3)
           .toUpperCase()}
         items={[
-          { id: "news", label: "Off-season", icon: "news", active: true },
-          { id: "team", label: "Squad", icon: "team" },
+          { id: "news", label: "Off-season", icon: "✉", active: true },
+          { id: "team", label: "Squad", icon: "●" },
         ]}
         actionBar={
           <>
@@ -291,9 +302,9 @@ export default function App() {
         homeFlag={(homeNation?.short_name ?? "HM").slice(0, 3).toUpperCase()}
         awayFlag={(awayNation?.short_name ?? "AW").slice(0, 3).toUpperCase()}
         items={[
-          { id: "news", label: "Match", icon: "news", active: true },
-          { id: "score", label: "Scorecard", icon: "team" },
-          { id: "opts", label: "Options", icon: "options" },
+          { id: "news", label: "Match", icon: "✉", active: true },
+          { id: "score", label: "Scorecard", icon: "●" },
+          { id: "opts", label: "Options", icon: "✓" },
         ]}
         actionBar={
           <>

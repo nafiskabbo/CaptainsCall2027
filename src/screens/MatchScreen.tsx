@@ -326,7 +326,9 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
         {/* ---- tactics + scorecards ---- */}
         <div className="stack">
           <div className="panel">
-            <h3 className="panel__title">Tactics</h3>
+            <div className="panel__head">
+              <span className="panel__label--gold">Tactics</span>
+            </div>
 
             <div className="field">
               <label htmlFor="aggression">Batting instructions</label>
@@ -401,7 +403,9 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit }: Pro
 
           {/* conditions */}
           <div className="panel">
-            <h3 className="panel__title">Conditions</h3>
+            <div className="panel__head">
+              <span className="panel__label--gold">Conditions</span>
+            </div>
             <div className="statgrid">
               <div className="stat">
                 <div className="stat__label">Run rate</div>
