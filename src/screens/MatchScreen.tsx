@@ -371,8 +371,10 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
         </div>
 
         {/* ---- tactics + scorecards ---- */}
-        // `optionsOpen` marks this column when the shell's Options sidebar item
-        // is active, so the sidebar selection is visible on the page.
+        {/*
+          `optionsOpen` marks this column when the shell's Options sidebar item
+          is active, so the sidebar selection is visible on the page.
+        */}
         <div
           className={`stack ${optionsOpen ? "stack--active" : ""}`}
           id="match-tactics"

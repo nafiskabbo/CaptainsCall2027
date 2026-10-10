@@ -273,6 +273,14 @@ export interface NewsItem {
   headline: string;
 }
 
+/**
+ * A league/group table row (`core::scheduler::TableRow`).
+ *
+ * Note there is no `net_run_rate_x100` here: in Rust that is a *method*, not a
+ * serialized field, so it never reaches the client. Declaring it produced a
+ * `NaN` column at runtime. Use `netRunRate()` below, which derives it from the
+ * fields that are actually sent.
+ */
 export interface TableRow {
   team_id: number;
   played: number;
@@ -284,7 +292,19 @@ export interface TableRow {
   runs_for: number;
   runs_against: number;
   wickets_lost: number;
-  net_run_rate_x100: number;
+}
+
+/**
+ * Net run rate, runs per over, as a display string.
+ *
+ * Mirrors `TableRow::net_run_rate_x100` in Rust. Returns "—" before a side has
+ * played, rather than dividing by zero and printing "NaN".
+ */
+export function netRunRate(row: TableRow): string {
+  if (row.played <= 0) return "—";
+  const balls = row.played * 120;
+  const nrr = (row.runs_for / balls - row.runs_against / balls) * 600;
+  return nrr.toFixed(2);
 }
 
 /** A player's career aggregates (`core::records::PlayerRecord`). */

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../tools/api";
 import type { CareerView, MatchSnapshot, SaveSummary, World } from "../types";
+import { netRunRate } from "../types";
 import { Button, Panel, Select, Tabs } from "../ui";
 import SelectionScreen from "./SelectionScreen";
 
@@ -21,6 +22,9 @@ interface Props {
 }
 
 function teamName(world: World, id: number): string {
+  // Knockout slots hold 0 until the group stage resolves who is in them. The
+  // list must say so rather than rendering the raw id as "Team 0".
+  if (id === 0) return "To be decided";
   return world.teams.find((t) => t.id === id)?.name ?? `Team ${id}`;
 }
 
@@ -51,6 +55,15 @@ export default function CareerScreen({
   const { state, table, nextFixtureId, seasonComplete } = career;
   const myTeamId = state.player_team_id;
   const comp = world.competitions.find((c) => c.id === state.competition_id);
+
+  // "Group A", for heading the standings an international career shows.
+  const groupLabel =
+    state.fixtures.find(
+      (f) =>
+        (f.home_id === myTeamId || f.away_id === myTeamId) &&
+        typeof f.stage === "string" &&
+        f.stage.startsWith("Group "),
+    )?.stage ?? null;
 
   useEffect(() => {
     api.listSaves().then(setSaves).catch(() => undefined);
@@ -199,15 +212,26 @@ export default function CareerScreen({
                     .map((f) => {
                       // International programme: show the stage alongside the teams.
                       const mine = f.home_id === myTeamId || f.away_id === myTeamId;
-                      const playable = mine && f.result === null;
+                      // A knockout whose slots are still 0 has no entrants yet,
+                      // so it is neither playable nor worth inviting a click.
+                      const undecided = f.home_id === 0 || f.away_id === 0;
+                      const playable = mine && f.result === null && !undecided;
                       return (
                         <button
                           key={f.id}
                           type="button"
-                          className={`fixturerow ${mine ? "fixturerow--mine" : ""}`}
+                          className={`fixturerow ${mine ? "fixturerow--mine" : ""} ${
+                            undecided ? "fixturerow--undecided" : ""
+                          }`}
                           onClick={() => (playable ? play(f.id) : undefined)}
                           disabled={!playable}
-                          title={playable ? "Play this match" : undefined}
+                          title={
+                            playable
+                              ? "Play this match"
+                              : undecided
+                                ? "Qualifiers are decided once the group stage is played"
+                                : undefined
+                          }
                         >
                           <span className="fixturerow__team">{teamName(world, f.home_id)}</span>
                           <span className="fixturerow__vs">{f.stage ?? "vs"}</span>
@@ -225,7 +249,9 @@ export default function CareerScreen({
                               <span className="muted">—</span>
                             )}
                           </span>
-                          <span className="fixturerow__venue">{groundName(world, f.ground_id)}</span>
+                          <span className="fixturerow__venue">
+                            {undecided ? "" : groundName(world, f.ground_id)}
+                          </span>
                         </button>
                       );
                     })}
@@ -235,34 +261,57 @@ export default function CareerScreen({
         )}
 
         {activeTab === "table" && (
-          <table className="data">
-            <thead>
-              <tr>
-                <th className="num">#</th>
-                <th>Team</th>
-                <th className="num">P</th>
-                <th className="num">W</th>
-                <th className="num">L</th>
-                <th className="num">T</th>
-                <th className="num">NRR</th>
-                <th className="num">Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {table.map((r, i) => (
-                <tr key={r.team_id} className={r.team_id === myTeamId ? "row--mine" : ""}>
-                  <td className="num">{i + 1}</td>
-                  <td>{teamName(world, r.team_id)}</td>
-                  <td className="num">{r.played}</td>
-                  <td className="num">{r.won}</td>
-                  <td className="num">{r.lost}</td>
-                  <td className="num">{r.tied}</td>
-                  <td className="num">{(r.net_run_rate_x100 / 100).toFixed(2)}</td>
-                  <td className="num strong">{r.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            {/*
+              The tab means different things in the two career modes: a league
+              table for a club, the World Cup group standings for a national
+              side. Labelling it accurately avoids promising a league that an
+              international campaign does not play.
+            */}
+            <h2 className="panel__title">
+              {career.international
+                ? groupLabel
+                  ? `${groupLabel} standings`
+                  : "Group standings"
+                : `${comp?.name ?? "Competition"} table`}
+            </h2>
+            {table.length === 0 ? (
+              <p className="muted">
+                {career.international
+                  ? "Your group is decided once the first fixtures are played."
+                  : "No results yet."}
+              </p>
+            ) : (
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th className="num">#</th>
+                    <th>Team</th>
+                    <th className="num">P</th>
+                    <th className="num">W</th>
+                    <th className="num">L</th>
+                    <th className="num">T</th>
+                    <th className="num">NRR</th>
+                    <th className="num">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.map((r, i) => (
+                    <tr key={r.team_id} className={r.team_id === myTeamId ? "row--mine" : ""}>
+                      <td className="num">{i + 1}</td>
+                      <td>{teamName(world, r.team_id)}</td>
+                      <td className="num">{r.played}</td>
+                      <td className="num">{r.won}</td>
+                      <td className="num">{r.lost}</td>
+                      <td className="num">{r.tied}</td>
+                      <td className="num">{netRunRate(r)}</td>
+                      <td className="num strong">{r.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
 
         {activeTab === "records" && (

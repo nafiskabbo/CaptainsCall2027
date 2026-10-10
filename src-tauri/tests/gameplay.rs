@@ -1038,3 +1038,70 @@ fn summary_is_tied(summary: &str) -> bool {
 fn summary_mentions_super_over(summary: &str) -> bool {
     summary.to_lowercase().contains("super over")
 }
+
+/// An international career must show a real standings table.
+///
+/// Regression: the career's competition id is a synthetic cup id that matches
+/// no entry in `world.competitions`, so the league lookup returned no teams and
+/// the Table tab rendered with headers and no rows at all. A national side is
+/// now shown its World Cup group standings instead.
+#[test]
+fn international_career_shows_group_standings() {
+    let world = load_world();
+    let nation = world
+        .teams
+        .iter()
+        .find(|t| t.is_national)
+        .expect("bundled world must have a national side");
+    let mut career = Career::start(&world, nation.id, "Standings".into(), 20270101).unwrap();
+
+    let before = career.table(&world);
+    assert!(
+        !before.is_empty(),
+        "an international career must not present an empty table"
+    );
+
+    // The standings must cover the player's own group and include them.
+    let ids: std::collections::HashSet<u32> = before.iter().map(|r| r.team_id).collect();
+    assert!(
+        ids.contains(&nation.id),
+        "group standings omit the player's own side"
+    );
+    // Group A/B/... with the player in a group of three.
+    assert!(
+        (2..=4).contains(&ids.len()),
+        "expected a group-sized table, got {} teams",
+        ids.len()
+    );
+
+    // Playing the group stage must move the table on.
+    for _ in 0..6 {
+        if career.season_complete() {
+            break;
+        }
+        match career.next_fixture().map(|f| f.id) {
+            Some(id) if career.start_fixture(&world, id).is_ok() => {
+                career.advance(1_000_000);
+            }
+            Some(_) => {
+                career.advance_day(&world);
+            }
+            None => {
+                career.advance_day(&world);
+            }
+        }
+    }
+    let after = career.table(&world);
+    assert!(!after.is_empty(), "standings vanished after playing");
+    assert!(
+        after.iter().any(|r| r.played > 0),
+        "group results never reached the standings"
+    );
+    // Ordered best-first so the leader is at the top.
+    for pair in after.windows(2) {
+        assert!(
+            pair[0].points >= pair[1].points,
+            "standings are not ordered by points"
+        );
+    }
+}

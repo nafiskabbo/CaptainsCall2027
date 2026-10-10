@@ -64,12 +64,29 @@ function diffShape(declared, value, prefix = "") {
   const extra = [];
   if (value === null || typeof value !== "object") return { missing, extra };
   const isArray = Array.isArray(value);
-  const sample = isArray ? value[0] : value;
+  /*
+    For an array payload, compare against the UNION of the keys seen across all
+    elements, not just the first row.
+
+    Skipping the "declared but absent" direction for arrays — as this did — left
+    the most important check blind to every list type. `TableRow` declared
+    `net_run_rate_x100`, which is a Rust *method* and never serialized; the UI
+    read `undefined` and rendered a NaN column, and every contract check passed
+    because arrays were never checked in that direction.
+
+    A field that is absent from every element is a phantom declaration and is
+    reported. A field merely absent from one sparse row is not, which is the
+    tolerance the original `continue` was reaching for.
+  */
+  const samples = isArray ? value.filter((v) => v && typeof v === "object") : [value];
+  const sample = samples[0];
   if (sample && typeof sample === "object") {
     const declaredKeys = declared ?? [];
     const seen = new Set();
-    for (const key of Object.keys(sample)) {
-      seen.add(key);
+    for (const row of samples) {
+      for (const key of Object.keys(row)) seen.add(key);
+    }
+    for (const key of seen) {
       const match = declaredKeys.find((d) => d.name === key);
       if (!match) {
         extra.push(`${prefix}${key}`);
@@ -79,7 +96,6 @@ function diffShape(declared, value, prefix = "") {
     }
     for (const d of declaredKeys) {
       if (seen.has(d.name)) continue;
-      if (isArray) continue; // a sparse row is not a missing field
       if (!d.optional) missing.push(`${prefix}${d.name}`);
     }
   }
@@ -101,6 +117,16 @@ const CHECKS = [
 const MATCH_CHECKS = [
   { cmd: "get_match", type: "MatchSnapshot", label: "MatchSnapshot (get_match)" },
   { cmd: "get_match", type: "Innings", at: "innings", label: "Innings (innings[])" },
+];
+
+/*
+ * Shapes reachable only after a match has been played. These are the ones most
+ * likely to drift, because nothing inspects them until a result exists — a
+ * field that Rust computes as a method rather than serializing is invisible to
+ * every other check here.
+ */
+const POST_MATCH_CHECKS = [
+  { cmd: "get_career_after", type: "TableRow", at: "table", label: "TableRow (career.table[])" },
 ];
 
 async function main() {
@@ -142,19 +168,28 @@ async function main() {
     const finances = await invoke("get_finances");
     const updates = await invoke("get_update_state");
     const next = career.state.fixtures.find((f) => f.id === career.nextFixtureId);
-    const match = await invoke("start_fixture", { fixtureId: next.id });
+    await invoke("start_fixture", { fixtureId: next.id });
+    const match = await invoke("sim_match", { count: 1 });
+    // Play the fixture out so the table has a result in it. The table is
+    // compared below, and an empty array cannot be checked — which is exactly
+    // how a phantom field like `net_run_rate_x100` survived here for so long:
+    // a Rust *method* was declared as a serialized field, and the UI rendered
+    // `NaN` from the resulting `undefined`.
+    await invoke("sim_match", { count: 100000 });
+    const careerAfter = await invoke("get_career");
     // Save first so list_saves has a row to compare against.
     await invoke("save_career");
     const saves = await invoke("list_saves");
     const payloads = {
       get_career: career,
+      get_career_after: careerAfter,
       get_transfer_pool: pool,
       get_finances: finances,
       get_update_state: updates,
       get_match: match,
       list_saves: saves,
     };
-    const all = [...CHECKS, ...MATCH_CHECKS];
+    const all = [...CHECKS, ...MATCH_CHECKS, ...POST_MATCH_CHECKS];
     for (const check of all) {
       const declared = TYPES.get(check.type);
       if (!declared) {

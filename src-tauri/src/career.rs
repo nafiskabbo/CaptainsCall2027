@@ -174,6 +174,21 @@ impl Career {
 
     /// League table for the competition.
     pub fn table(&self, world: &World) -> Vec<TableRow> {
+        // An international career runs on a synthetic cup id that matches no
+        // entry in `world.competitions`, so a league lookup returns nothing and
+        // the Table tab renders empty. The meaningful table there is the
+        // player's World Cup *group*, which is what decides who goes through to
+        // the semi-finals.
+        let is_international = world
+            .teams
+            .iter()
+            .find(|t| t.id == self.state.player_team_id)
+            .map(|t| t.is_national)
+            .unwrap_or(false);
+        if is_international {
+            return self.group_table();
+        }
+
         let team_ids: Vec<u32> = world
             .competitions
             .iter()
@@ -181,6 +196,55 @@ impl Career {
             .map(|c| c.team_ids.clone())
             .unwrap_or_default();
         scheduler::table_for(&team_ids, &self.state.fixtures)
+    }
+
+    /// Standings for the player's own World Cup group.
+    ///
+    /// Falls back to every national side if the player's group cannot be
+    /// identified, so the tab is never empty mid-season.
+    fn group_table(&self) -> Vec<TableRow> {
+        let me = self.state.player_team_id;
+        let my_group = self
+            .state
+            .fixtures
+            .iter()
+            .find(|f| {
+                (f.home_id == me || f.away_id == me)
+                    && f.stage.as_deref().is_some_and(|s| s.starts_with("Group "))
+            })
+            .and_then(|f| f.stage.clone());
+
+        let group_fixtures: Vec<Fixture> = match &my_group {
+            Some(label) => self
+                .state
+                .fixtures
+                .iter()
+                .filter(|f| f.stage.as_deref() == Some(label.as_str()))
+                .cloned()
+                .collect(),
+            None => Vec::new(),
+        };
+        if group_fixtures.is_empty() {
+            return Vec::new();
+        }
+
+        let mut ids: Vec<u32> = Vec::new();
+        for f in &group_fixtures {
+            for id in [f.home_id, f.away_id] {
+                if id != 0 && !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+        }
+        let mut rows = scheduler::table_for(&ids, &group_fixtures);
+        // Players, not algorithms, read this: best first.
+        rows.sort_by(|a, b| {
+            b.points
+                .cmp(&a.points)
+                .then(b.net_run_rate_x100().cmp(&a.net_run_rate_x100()))
+                .then(a.team_id.cmp(&b.team_id))
+        });
+        rows
     }
 
     /// Begin the player's fixture. CPU selection is the default for now

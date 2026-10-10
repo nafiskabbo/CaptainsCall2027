@@ -113,6 +113,11 @@
 }
 
 /* partnership tag */
+/*
+  The partnership readout sits over the ground, so it uses the same translucent
+  green as the rest of the field chrome with a gold figure — the previous
+  violet was the only colour in the game that appeared nowhere else.
+*/
 .groundtag {
   position: absolute;
   top: 11px;
@@ -121,16 +126,18 @@
   text-align: right;
   font-size: 0.74rem;
   line-height: 1.25;
-  color: #fff;
-  background: linear-gradient(180deg, rgba(150, 110, 220, 0.88), rgba(70, 45, 140, 0.9));
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 3px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+  color: var(--ink);
+  background: rgba(0, 45, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 3px solid var(--gold);
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .groundtag b {
   display: block;
   font-size: 0.82rem;
+  color: var(--gold);
 }
 
 /* bottom scorebar */
@@ -286,6 +293,15 @@
 .fixturerow--mine {
   background: rgba(46, 107, 184, 0.16);
   box-shadow: inset 3px 0 0 var(--blue-400);
+}
+
+/*
+  A knockout whose slots are not yet filled: shown for context, but dimmed and
+  unclickable so it does not read as a match you can enter.
+*/
+.fixturerow--undecided {
+  opacity: 0.62;
+  font-style: italic;
 }
 
 .fixturerow__team {

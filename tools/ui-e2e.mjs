@@ -338,6 +338,7 @@ async function scenarioWorldAndCareer({ window, calls }) {
   );
   check("next-match panel shown", hasText(window, "Your next match"));
   check("invoke traffic recorded", calls.length > 0, `${calls.length} calls`);
+  checkRenderedTextIsClean(window, "career");
 }
 
 /**
@@ -620,6 +621,11 @@ async function scenarioMatch({ window, calls, consoleErrors }) {
       `phase=${done?.phase}`);
   }
 
+  // Checked while the match screen is still on the page: this is where a stray
+  // JSX comment used to render. Checking after "Main Screen" would only ever
+  // ever look at the career screen.
+  checkRenderedTextIsClean(window, "match");
+
   const exportBtn = buttons(window, /export/i)[0];
   if (exportBtn) {
     const n = calls.length;
@@ -642,6 +648,34 @@ async function scenarioMatch({ window, calls, consoleErrors }) {
 
   check("no React errors during the match", consoleErrors.length === 0,
     consoleErrors.slice(0, 3).join(" / "));
+}
+
+/**
+ * No screen may render source-code debris into the page.
+ *
+ * A `//` comment placed as a direct child of a JSX element is not a comment —
+ * it is a text node, and it appears on screen. That shipped: the match screen
+ * displayed its own comment above the tactics column. The screens are checked
+ * for the tell-tale markers rather than for any one known string, so the next
+ * stray comment is caught wherever it lands.
+ */
+function checkRenderedTextIsClean(window, screenLabel = "screen") {
+  const text = $(window, "#root")?.textContent ?? "";
+  // Code debris that can only come from an unrendered source comment.
+  const markers = [
+    { what: "a JSX line comment", re: /(^|\s)\/\/\s+\S/ },
+    { what: "a block-comment marker", re: /\/\*/ },
+    { what: "a JSX expression brace", re: /\{\s*`/ },
+    { what: "a TypeScript type annotation", re: /:\s*(string|number|boolean|void)\b/ },
+  ];
+  for (const marker of markers) {
+    const m = marker.re.exec(text);
+    check(
+      `${screenLabel} renders no ${marker.what}`,
+      !m,
+      m ? JSON.stringify(text.slice(Math.max(0, m.index - 30), m.index + 60)) : "",
+    );
+  }
 }
 
 /**

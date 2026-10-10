@@ -275,6 +275,67 @@ clean. A full international season — pick India, play the group stage, reach
 the semi-final, finish the season, read career records — was played end to end
 against the real engine.
 
+## DESIGN PASS — rebuilt from the original's actual screenshots (2026-10-10)
+
+The previous design was written from memory of Cricket Coach 2014 and was
+wrong in kind, not just in detail. Fetching the official screenshots from
+cricketcoachgame.com (`C14_SS5`, `C14_SS29`, `C14_SS52`) showed the real
+language is a **late-2000s Windows utility on a cricket ground**, not glossy
+game chrome:
+
+- solid royal-blue title bar and a **blue left rail** with white labels and
+  small triangular expanders — not individually beveled blue buttons
+- a **deep saturated green** content field with the stadium showing faintly
+  through, drawn in CSS rather than shipped as artwork
+- **brushed-silver tabs** and form controls, with the selected tab dropping the
+  metal fill for near-white
+- **yellow column headers** with a thin white rule, on the green, with no
+  filled header band — the single most recognisable table detail
+- **white text fields with black text**; dropdowns and buttons in metal
+- **blue slider bars** with a pale handle
+- **no boxed panels at all**: content sits on the green, so panels here are
+  only a soft wash and a hairline
+
+`color-scheme` also moved to `light`. It was `dark`, which made the webview
+render native controls — dropdowns, scrollbars — dark, producing dark-on-dark
+unreadable dropdown text and fighting the whole design.
+
+### Bugs this pass found
+
+Design review meant actually looking at the screens, which surfaced four more
+real defects that tests had not:
+
+- **The setup screen had no left rail at all.** It rendered the bare field
+  through the empty grid column. It now carries the blue rail the original
+  shows on every screen.
+- **The match screen rendered its own source comment on the page.** A `//`
+  comment placed as a direct child of a JSX element is a text node, not a
+  comment. Guarded by a new rendered-text check.
+- **The international Table tab was permanently empty.** A national career's
+  `competition_id` is a synthetic cup id matching no entry in
+  `world.competitions`, so the league lookup returned no teams. A national side
+  is now shown its World Cup **group standings**, which is what actually
+  decides who reaches the semi-finals.
+- **The table's NRR column printed `NaN`.** `TableRow.net_run_rate_x100` is a
+  Rust *method*, not a serialized field, so the UI read `undefined`. Worse,
+  `diffShape` in the contract check skipped the "declared but absent" direction
+  entirely for array payloads, so the phantom field passed every check. Both
+  are fixed: the NRR is derived in the UI from the fields that are sent, and
+  `diffShape` now compares arrays against the union of their keys so a field
+  absent from every element is reported.
+- Also: unresolved knockouts showed a raw **"Team 0"** (now "To be decided",
+  dimmed and unplayable), the sidebar never highlighted the active tab past the
+  first row, and the partnership readout was the only violet element in a
+  green-and-blue game.
+
+### Verification
+
+Reviewed by rendering each screen through the real bundle with the real
+stylesheets and screenshotting in headless Chrome — the reference is a picture,
+so the comparison has to be one. 114 Rust tests, 69 UI e2e checks, the contract
+check, clippy, fmt and tsc all green. Each new guard was confirmed to fail
+against the behaviour it was written for.
+
 ## AI workflow rules
 
 1. One plan box = one branch/commit (`m1-1-ball-model` etc.).

@@ -1,155 +1,154 @@
 /* ============================================================
-   Buttons, tabs, panels, tables — the original's beveled chrome
+   Buttons, tabs, panels, tables — the original's Windows chrome
+
+   The original's controls are native-desktop widgets: brushed-metal buttons,
+   silver tabs, white text fields with black text. They are not glossy game
+   buttons. The blue variants survive only where the original uses blue.
    ============================================================ */
 
-/* ---- beveled buttons ---- */
+/* ---- brushed-metal button ---- */
 .btn {
   position: relative;
-  padding: 0.3rem 0.8rem;
+  padding: 0.26rem 0.8rem;
   font: inherit;
   font-size: 0.84rem;
-  color: var(--ink);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
-  background: var(--btn-blue);
-  border: 1px solid rgba(4, 14, 28, 0.7);
-  border-radius: 3px;
+  color: #1c1c1c;
+  background: var(--metal);
+  border: 1px solid var(--silver-500);
+  border-radius: var(--radius);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    0 1px 2px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.4);
   cursor: pointer;
   white-space: nowrap;
 }
 
-/* the glossy top highlight that makes these read as 3D */
-.btn::after {
-  content: "";
-  position: absolute;
-  inset: 1px 1px auto 1px;
-  height: 44%;
-  border-radius: 2px 2px 1px 1px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
-  pointer-events: none;
-}
-
 .btn:hover:not(:disabled) {
-  background: var(--btn-blue-hi);
+  background: var(--metal-down);
+  border-color: var(--silver-400);
 }
 
 .btn:active:not(:disabled) {
-  box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(0, 0, 0, 0.4);
+  background: var(--metal-down);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  color: var(--silver-500);
+  background: linear-gradient(180deg, #e6e6e6, #c8c8c8);
   cursor: not-allowed;
 }
 
 .btn--primary {
-  background: linear-gradient(180deg, #4a9de0 0%, #2e74c4 45%, #225aa2 55%, #173f77 100%);
+  color: #fff;
   font-weight: 600;
+  background: linear-gradient(180deg, var(--blue-500) 0%, var(--blue-600) 52%, var(--blue-700) 100%);
+  border-color: var(--blue-900);
 }
 
 .btn--danger {
-  background: linear-gradient(180deg, #d06a62 0%, #b0453f 45%, #8a2b28 55%, #6e1f1d 100%);
   color: #fff;
   font-weight: 600;
+  background: linear-gradient(180deg, #c85f57 0%, var(--red) 52%, #8f312c 100%);
+  border-color: #5e1e1b;
 }
 
 .btn--gray {
-  background: var(--btn-gray);
-  color: #14200f;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: #1c1c1c;
 }
 
 .btn--ghost {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
-  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06));
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .btn--sm {
-  padding: 0.14rem 0.5rem;
+  padding: 0.12rem 0.5rem;
   font-size: 0.76rem;
 }
 
 .btn--icon {
-  padding: 0.08rem 0.34rem;
+  padding: 0.06rem 0.34rem;
   font-size: 0.8rem;
   line-height: 1.1;
 }
 
-/* the big blue Continue pill with its arrow disc */
+/* The blue Continue button in the action bar, with its arrow disc. */
 .btn--continue {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.3rem 0.32rem 0.3rem 1.1rem;
-  font-size: 0.92rem;
+  gap: 0.45rem;
+  padding: 0.24rem 0.28rem 0.24rem 0.9rem;
+  font-size: 0.9rem;
   font-weight: 600;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #4a9de0 0%, #2a6ec0 48%, #1c4a8a 100%);
+  color: #fff;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--blue-500) 0%, var(--blue-600) 52%, var(--blue-700) 100%);
+  border-color: var(--blue-900);
 }
 
 .btn--continue__arrow {
   display: grid;
   place-items: center;
-  width: 23px;
-  height: 23px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 38% 30%, #ffffff, #a9cdf0 62%, #5f97cc);
-  color: #103050;
-  font-size: 0.82rem;
-  box-shadow: inset 0 -1px 2px rgba(0, 0, 0, 0.28);
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #ffffff, #cfd8e4);
+  color: var(--blue-800);
+  font-size: 0.8rem;
 }
 
-/* ---- tabs: raised strips that merge with the chrome ---- */
+/* ---- tabs: brushed-silver strips, the signature element ---- */
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.22rem;
-  margin-bottom: 0.7rem;
-  padding-bottom: 0.15rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  gap: 2px;
+  margin-bottom: 0.6rem;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.45);
 }
 
 .tab {
-  padding: 0.3rem 0.72rem;
+  padding: 0.3rem 0.85rem;
   font: inherit;
-  font-size: 0.8rem;
-  color: var(--ink-dim);
-  background: linear-gradient(180deg, rgba(46, 107, 184, 0.55), rgba(26, 64, 121, 0.7));
-  border: 1px solid rgba(0, 0, 0, 0.35);
-  border-bottom-color: transparent;
+  font-size: 0.82rem;
+  color: #2b2b2b;
+  background: linear-gradient(180deg, #c9c9c9 0%, #a6a6a6 55%, #bcbcbc 100%);
+  border: 1px solid var(--silver-600);
+  border-bottom-color: var(--silver-700);
   border-radius: 3px 3px 0 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   cursor: pointer;
 }
 
 .tab:hover {
-  color: var(--ink);
+  background: linear-gradient(180deg, #dcdcdc 0%, #b8b8b8 55%, #cccccc 100%);
 }
 
+/*
+  The selected tab in the original is the pale one: it drops the metal fill for
+  near-white, which makes it read as connected to the panel beneath.
+*/
 .tab--active {
-  color: #ffffff;
+  color: #000;
   font-weight: 600;
-  background: linear-gradient(180deg, #4a8ad4 0%, #2e6bb8 50%, #22529a 100%);
-  border-color: #08152c;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 -1px 3px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(180deg, #ffffff 0%, #efefef 60%, #f6f6f6 100%);
+  border-color: var(--silver-500);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* ---- panels: translucent over the field, with a beveled head ---- */
+/*
+  Panels are deliberately light: the original does not box its content in
+  raised containers. Screens sit directly on the green with silver tabs above
+  and yellow column headers in the tables, so a panel here is only a spacing
+  and grouping device — a soft wash and a hairline, no heavy chrome.
+*/
 .panel {
   position: relative;
   background: var(--panel);
-  border: 1px solid rgba(0, 0, 0, 0.5);
-  border-radius: 3px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    0 2px 6px rgba(0, 0, 0, 0.4);
-  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.7rem;
 }
 
 .panel--flush {
@@ -157,21 +156,21 @@
   overflow: hidden;
 }
 
+/*
+  The head is a yellow section label with a hairline beneath, matching how the
+  original labels sections on the green. It is not a raised bar: a metal strip
+  here fought the silver tabs and read as a second navigation layer.
+*/
 .panel__head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.6rem;
-  margin: -0.75rem -0.85rem 0.7rem;
-  padding: 0.34rem 0.7rem;
+  margin: 0 0 0.5rem;
+  padding: 0 0 0.28rem;
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--ink);
-  background: var(--panel-head);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.5);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .panel__head .panel__headactions {
@@ -181,21 +180,20 @@
 }
 
 .panel__title {
-  margin: 0 0 0.55rem;
+  margin: 0 0 0.45rem;
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--ink);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 
-/* gold section label, as the original uses for "Series Options" */
+/* Yellow label, as the original uses for section headings and results. */
 .panel__label--gold {
   color: var(--gold);
-  font-size: 0.84rem;
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
-/* ---- tables: dense, near-black rows on the field ---- */
+/* ---- tables ---- */
 .tablewrap {
   overflow: auto;
 }
@@ -207,39 +205,40 @@ table.data {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+  The most recognisable table detail in the original: YELLOW header text on the
+  green, with a thin white rule beneath and no filled header band.
+*/
 table.data th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 0.32rem 0.5rem;
+  padding: 0.3rem 0.5rem;
   text-align: left;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.045em;
-  color: var(--ink);
-  background: linear-gradient(180deg, rgba(46, 107, 184, 0.9), rgba(18, 47, 94, 0.95));
-  border-bottom: 1px solid rgba(0, 0, 0, 0.6);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--gold);
+  background: rgba(0, 45, 18, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.85);
   white-space: nowrap;
 }
 
 table.data td {
-  padding: 0.27rem 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.24rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   white-space: nowrap;
 }
 
 table.data tbody tr {
-  background: rgba(0, 12, 2, 0.5);
+  background: rgba(0, 20, 5, 0.35);
 }
 
 table.data tbody tr:nth-child(even) {
-  background: rgba(0, 20, 5, 0.6);
+  background: rgba(0, 30, 8, 0.4);
 }
 
 table.data tbody tr:hover {
-  background: rgba(46, 107, 184, 0.22);
+  background: rgba(26, 92, 200, 0.28);
 }
 
 .num {
@@ -321,28 +320,114 @@ label {
   color: var(--ink-dim);
 }
 
-select,
+/*
+  Text fields are WHITE with BLACK text in the original — the single detail
+  that most says "this is Cricket Coach" on the editor screens. Dropdowns are
+  the exception: they use the brushed-metal ramp.
+*/
 input[type="text"],
 input[type="number"] {
   width: 100%;
-  padding: 0.26rem 0.4rem;
+  padding: 0.24rem 0.4rem;
   font: inherit;
   font-size: 0.84rem;
-  color: var(--ink);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.34));
-  border: 1px solid rgba(0, 0, 0, 0.6);
-  border-radius: 3px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  color: var(--field-ink);
+  background: var(--field-face);
+  border: 1px solid var(--silver-500);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+
+input[type="text"]::placeholder,
+input[type="number"]::placeholder {
+  color: #7a7a7a;
+}
+
+select {
+  width: 100%;
+  padding: 0.24rem 1.6rem 0.24rem 0.4rem;
+  font: inherit;
+  font-size: 0.84rem;
+  color: #1c1c1c;
+  /*
+    Three stacked layers, each with its own size and position. `background-size`
+    and `background-position` apply per layer, so the gradients must be given
+    explicit values too — otherwise the chevron stretches across the whole
+    control and covers the selected label.
+  */
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0h10L5 6z' fill='%23222222'/></svg>"),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 48%),
+    linear-gradient(180deg, #d2d2d2 0%, #a4a4a4 100%);
+  background-size: 9px 6px, 100% 100%, 100% 100%;
+  background-position: right 0.4rem center, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  border: 1px solid var(--silver-600);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  /* Drawn rather than native: the webview's own dropdown ignores the metal
+     ramp and renders a flat dark widget on some platforms. */
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+select:disabled {
+  color: var(--silver-500);
 }
 
 select option {
-  background: #0a2410;
-  color: var(--ink);
+  color: #111;
+  background: #efefef;
+}
+
+/*
+  Sliders are blue bars with a pale handle in the original, rather than the
+  dark troughs a dark theme would default to.
+*/
+input[type="range"] {
+  flex: 1;
+  min-width: 90px;
+  height: 16px;
+  accent-color: var(--blue-500);
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--blue-600);
+  border: 1px solid var(--blue-900);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 11px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, #f4f4f4 0%, #b0b0b0 55%, #d0d0d0 100%);
+  border: 1px solid var(--silver-600);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: var(--blue-600);
+  border: 1px solid var(--blue-900);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 11px;
+  height: 16px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, #f4f4f4 0%, #b0b0b0 55%, #d0d0d0 100%);
+  border: 1px solid var(--silver-600);
 }
 
 input[type="checkbox"],
 input[type="radio"] {
-  accent-color: #4a8ad4;
+  accent-color: var(--blue-500);
   width: 15px;
   height: 15px;
 }
@@ -355,13 +440,16 @@ input[type="radio"] {
 }
 
 .setuprow__label {
-  flex: 0 0 172px;
-  text-align: right;
+  flex: 0 0 200px;
   font-size: 0.85rem;
   color: var(--ink);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 
+/*
+  The original's setup screens are a two-column label/field grid with a long
+  label column and the control left-aligned against it — not a right-aligned
+  label, which is what this had.
+*/
 .setuprow__control {
   flex: 1;
   display: flex;

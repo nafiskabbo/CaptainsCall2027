@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./tools/api";
 import type { AppInfo, CareerView, MatchSnapshot, World } from "./types";
-import AppShell, { type SidebarItem } from "./components/AppShell";
+import AppShell, { NavRow, type SidebarItem } from "./components/AppShell";
 import CareerScreen from "./screens/CareerScreen";
 import MatchScreen from "./screens/MatchScreen";
 import WorldScreen from "./screens/WorldScreen";
@@ -195,6 +195,23 @@ export default function App() {
             <span className="flag flag--home">CC27</span>
           </div>
         </header>
+
+        {/*
+          The original keeps its blue rail on the new-game screen too, listing
+          the modes you can enter. This screen had no rail at all, which left
+          the left column empty and showed the bare field through it.
+        */}
+        <nav className="sidebar" aria-label="Main navigation">
+          <div className="sidebar__nav">
+            <NavRow item={{ id: "intl", label: "International", icon: "team", active: true }} />
+            <NavRow item={{ id: "dom", label: "Domestic", icon: "list" }} />
+            <NavRow item={{ id: "clubs", label: "Clubs & squads", icon: "team" }} />
+            <NavRow item={{ id: "records", label: "Records", icon: "chart" }} />
+            <NavRow item={{ id: "search", label: "Quick search", icon: "news" }} />
+          </div>
+          <div className="sidebar__spacer" />
+        </nav>
+
         <div className="content">
           <div className="content__inner">
             <WorldScreen
@@ -223,10 +240,12 @@ export default function App() {
     const activeTab = careerTab === "fixtures" ? "today" : careerTab;
     const items: SidebarItem[] = [
       { id: "fixtures", label: "Fixtures", icon: "list", active: activeTab === "today", onClick: () => setCareerTab("today") },
-      { id: "table", label: "Table", icon: "chart", onClick: () => setCareerTab("table") },
-      { id: "records", label: "Records", icon: "chart", onClick: () => setCareerTab("records") },
-      { id: "squad", label: "Squad", icon: "team", onClick: () => setCareerTab("squad") },
-      { id: "news", label: "News", icon: "news", onClick: () => setCareerTab("news") },
+      // `active` was missing on every row but the first, so the rail kept
+      // showing "Fixtures" highlighted while the player was on another tab.
+      { id: "table", label: "Table", icon: "chart", active: activeTab === "table", onClick: () => setCareerTab("table") },
+      { id: "records", label: "Records", icon: "chart", active: activeTab === "records", onClick: () => setCareerTab("records") },
+      { id: "squad", label: "Squad", icon: "team", active: activeTab === "squad", onClick: () => setCareerTab("squad") },
+      { id: "news", label: "News", icon: "news", active: activeTab === "news", onClick: () => setCareerTab("news") },
     ];
 
     return (
