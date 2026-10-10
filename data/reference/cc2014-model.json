@@ -1,0 +1,1855 @@
+{
+  "_about": "Cricket Coach 2014 ball-by-ball model, extracted from the installed data files by tools/extract-cc2014-model.mjs. Identifiers, tags and structure only — no commentary prose, no assets.",
+  "source": "Cricket Coach 2014 (db/db2014/*.csv)",
+  "taxonomy": {
+    "lengths": [
+      {
+        "code": 8001,
+        "name": "TACTICS_BALLTYPE_GOODLENGTH"
+      },
+      {
+        "code": 8002,
+        "name": "TACTICS_BALLTYPE_SHORT_OFF"
+      },
+      {
+        "code": 8003,
+        "name": "TACTICS_BALLTYPE_YORKER"
+      },
+      {
+        "code": 8004,
+        "name": "TACTICS_BALLTYPE_BOUNCER"
+      }
+    ],
+    "movements": [
+      {
+        "code": 9001,
+        "name": "TACTICS_BALLTYPE_STRAIGHT"
+      },
+      {
+        "code": 9002,
+        "name": "TACTICS_BALLTYPE_INSWING"
+      },
+      {
+        "code": 9003,
+        "name": "TACTICS_BALLTYPE_OUTSWING"
+      },
+      {
+        "code": 9004,
+        "name": "TACTICS_BALLTYPE_OFFCUTTER"
+      },
+      {
+        "code": 9005,
+        "name": "TACTICS_BALLTYPE_LEGCUTTER"
+      },
+      {
+        "code": 9006,
+        "name": "TACTICS_BALLTYPE_SLOWER"
+      },
+      {
+        "code": 9007,
+        "name": "TACTICS_BALLTYPE_LEGBREAK"
+      },
+      {
+        "code": 9008,
+        "name": "TACTICS_BALLTYPE_OFFBREAK"
+      },
+      {
+        "code": 9009,
+        "name": "TACTICS_BALLTYPE_STRAIGHTONE"
+      },
+      {
+        "code": 9010,
+        "name": "TACTICS_BALLTYPE_WRONGUN"
+      },
+      {
+        "code": 9011,
+        "name": "TACTICS_BALLTYPE_SPECIALITY"
+      }
+    ],
+    "bowlerTypes": [
+      {
+        "code": 0,
+        "name": "PLAYER_BOWLING_CANTBOWL"
+      },
+      {
+        "code": 1,
+        "name": "PLAYER_BOWLING_FASTBOWL"
+      },
+      {
+        "code": 2,
+        "name": "PLAYER_BOWLING_FASTMED"
+      },
+      {
+        "code": 3,
+        "name": "PLAYER_BOWLING_MEDFAST"
+      },
+      {
+        "code": 4,
+        "name": "PLAYER_BOWLING_MEDIUM"
+      },
+      {
+        "code": 5,
+        "name": "PLAYER_BOWLING_OFFSPIN"
+      },
+      {
+        "code": 6,
+        "name": "PLAYER_BOWLING_LEGSPIN"
+      }
+    ],
+    "strokes": [
+      {
+        "code": 20100,
+        "name": "SHOT_LEAVE"
+      },
+      {
+        "code": 20101,
+        "name": "SHOT_FRONT_DEFENSIVE"
+      },
+      {
+        "code": 20102,
+        "name": "SHOT_BACK_DEFENSIVE"
+      },
+      {
+        "code": 20103,
+        "name": "SHOT_STRAIGHTDRIVE"
+      },
+      {
+        "code": 20104,
+        "name": "SHOT_COVERDRIVE"
+      },
+      {
+        "code": 20105,
+        "name": "SHOT_LEGGLANCE"
+      },
+      {
+        "code": 20106,
+        "name": "SHOT_CUT"
+      },
+      {
+        "code": 20107,
+        "name": "SHOT_PULL"
+      },
+      {
+        "code": 20108,
+        "name": "SHOT_HOOK"
+      },
+      {
+        "code": 20109,
+        "name": "SHOT_SWEEP"
+      },
+      {
+        "code": 20111,
+        "name": "SHOT_ONDRIVE"
+      },
+      {
+        "code": 20112,
+        "name": "SHOT_OFFDRIVE"
+      }
+    ]
+  },
+  "outcomes": {
+    "runs": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      6
+    ],
+    "wicketCodes": null
+  },
+  "commentary": {
+    "deliveries": 15,
+    "shots": 135,
+    "byStroke": {
+      "20100": 25,
+      "20101": 25,
+      "20102": 25,
+      "20103": 49,
+      "20104": 0,
+      "20105": 1,
+      "20106": 1,
+      "20107": 2,
+      "20108": 1,
+      "20109": 4,
+      "20111": 1,
+      "20112": 1
+    }
+  },
+  "bowlingPlans": [
+    {
+      "name": "FCPace - all out att",
+      "description": "All out attack bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 4,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 15
+        }
+      ]
+    },
+    {
+      "name": "FCPace - attack",
+      "description": "attacking bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 3,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "FCPace - normal",
+      "description": "normal bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 8
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 8
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 8
+        },
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 8
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 8
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "FCPace - defence",
+      "description": "defensive bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "FCPace - ultra def",
+      "description": "Ultra defensive bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9001,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8004,
+          "movement": 9001,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9006,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8003,
+          "movement": 9006,
+          "weight": 6
+        }
+      ]
+    },
+    {
+      "name": "FCOff Spin - att",
+      "description": "Attack bowling (off spin)",
+      "deliveries": [
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9010,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9011,
+          "weight": 10
+        }
+      ]
+    },
+    {
+      "name": "FCLeg Spin - att",
+      "description": "Attacking bowling (leg spin)",
+      "deliveries": [
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        }
+      ]
+    },
+    {
+      "name": "FCOff Spin - norm",
+      "description": "normal bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "FCLeg Spin - norm",
+      "description": "normal bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9010,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "FCOff Spin - def",
+      "description": "defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "FCLeg Spin - def",
+      "description": "defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "FCOff Sp - ultra def",
+      "description": "Ultra defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "FCLeg Sp - ultra def",
+      "description": "Ultra defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "ODPace - all out att",
+      "description": "All out attack bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 4,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 15
+        }
+      ]
+    },
+    {
+      "name": "ODPace - attack",
+      "description": "attacking bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 3,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "ODPace - normal",
+      "description": "normal bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 2,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "ODPace - defence",
+      "description": "defensive bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "ODPace - ultra def",
+      "description": "Ultra defensive bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9001,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8004,
+          "movement": 9001,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9006,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8003,
+          "movement": 9006,
+          "weight": 6
+        }
+      ]
+    },
+    {
+      "name": "ODOff Spin - attack",
+      "description": "Attack bowling (off spin)",
+      "deliveries": [
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9010,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9011,
+          "weight": 10
+        }
+      ]
+    },
+    {
+      "name": "ODLeg Spin - attack",
+      "description": "Attacking bowling (leg spin)",
+      "deliveries": [
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        }
+      ]
+    },
+    {
+      "name": "ODOff Spin - norm",
+      "description": "normal bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "ODLeg Spin - norm",
+      "description": "normal bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9010,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "ODOff Spin - def",
+      "description": "defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "ODLeg Spin - def",
+      "description": "defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "ODOff Sp - ultra def",
+      "description": "Ultra defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "ODLeg Sp - ultra def",
+      "description": "Ultra defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "T2Pace - all out att",
+      "description": "All out attack bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 4,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 15
+        },
+        {
+          "seq": 4,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 15
+        }
+      ]
+    },
+    {
+      "name": "T2Pace - attack",
+      "description": "attacking bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 3,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 9
+        },
+        {
+          "seq": 3,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "T2Pace - normal",
+      "description": "normal bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 2,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 8
+        },
+        {
+          "seq": 2,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "T2Pace - defence",
+      "description": "defensive bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9002,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9002,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 7
+        },
+        {
+          "seq": 1,
+          "length": 8003,
+          "movement": 9001,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "T2Pace - ultra def",
+      "description": "Ultra defensive bowling (pace)",
+      "deliveries": [
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9001,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8004,
+          "movement": 9001,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8001,
+          "movement": 9006,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8002,
+          "movement": 9003,
+          "weight": 6
+        },
+        {
+          "seq": 0,
+          "length": 8003,
+          "movement": 9006,
+          "weight": 6
+        }
+      ]
+    },
+    {
+      "name": "T2Off Spin - att",
+      "description": "Attack bowling (off spin)",
+      "deliveries": [
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9010,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9011,
+          "weight": 10
+        }
+      ]
+    },
+    {
+      "name": "T2Leg Spin - att",
+      "description": "Attacking bowling (leg spin)",
+      "deliveries": [
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        },
+        {
+          "seq": 9,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 10
+        }
+      ]
+    },
+    {
+      "name": "T2Off Spin - norm",
+      "description": "normal bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "T2Leg Spin - norm",
+      "description": "normal bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 9
+        },
+        {
+          "seq": 7,
+          "length": 8001,
+          "movement": 9010,
+          "weight": 9
+        }
+      ]
+    },
+    {
+      "name": "T2Off Spin - def",
+      "description": "defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "T2Leg Spin - def",
+      "description": "defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9009,
+          "weight": 8
+        },
+        {
+          "seq": 6,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 8
+        }
+      ]
+    },
+    {
+      "name": "T2Off Sp - ultra def",
+      "description": "Ultra defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9008,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "name": "T2Leg Sp - ultra def",
+      "description": "Ultra defensive bowling (spin)",
+      "deliveries": [
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        },
+        {
+          "seq": 5,
+          "length": 8001,
+          "movement": 9007,
+          "weight": 7
+        }
+      ]
+    }
+  ]
+}

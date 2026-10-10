@@ -643,6 +643,28 @@ pub fn preview_ball(state: SharedState<'_>) -> Result<HashMap<String, f64>, Stri
         .collect())
 }
 
+/// The odds for a *hypothetical* set of orders, without changing the match.
+///
+/// The stroke picker prices all twelve strokes at once, which means asking "what
+/// if I played this?" twelve times. It cannot do that by mutating the live
+/// orders: that would change what the next ball is actually bowled with, and a
+/// control that alters the match by being looked at is not a control.
+#[tauri::command]
+pub fn preview_ball_with(
+    state: SharedState<'_>,
+    input: MatchInput,
+) -> Result<HashMap<String, f64>, String> {
+    let guard = state.career.lock().map_err(|e| e.to_string())?;
+    let career = guard.as_ref().ok_or("no career in progress")?;
+    let live = career.live.as_ref().ok_or("no live match")?;
+    let p = live.sim.preview_ball_with(&input);
+    Ok(NAMES
+        .iter()
+        .enumerate()
+        .map(|(i, n)| ((*n).to_string(), p[i]))
+        .collect())
+}
+
 /// Advance N balls in the live fixture; auto-records the result at the end.
 #[tauri::command]
 pub fn sim_match(state: SharedState<'_>, count: u32) -> Result<MatchSnapshot, String> {

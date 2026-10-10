@@ -63,6 +63,7 @@ pub fn run() {
             commands::get_match,
             commands::set_match_input,
             commands::preview_ball,
+            commands::preview_ball_with,
             commands::sim_match,
             commands::sim_innings,
             commands::export_scorecard,

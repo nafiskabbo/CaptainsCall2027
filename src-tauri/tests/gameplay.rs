@@ -416,24 +416,24 @@ fn previewing_does_not_disturb_the_match() {
     );
 }
 
-/// The committed shot must actually be what the engine rolls against.
+/// The committed stroke must actually be what the engine rolls against.
 ///
-/// This is the mechanic end-to-end: the same career and seed, one playing for
-/// boundaries and one leaving every ball to the engine, must produce different
-/// innings. If they did not, the picker's buttons would be decoration.
+/// This is the mechanic end-to-end: the same career and seed, one attacking and
+/// one blocking every ball, must produce different innings. If they did not,
+/// the picker's buttons would be decoration.
 #[test]
-fn a_committed_shot_changes_the_innings() {
-    use captains_call_2027_lib::match_::state::ShotChoice;
+fn a_committed_stroke_changes_the_innings() {
+    use captains_call_2027_lib::match_::state::Stroke;
 
     let world = load_world();
     let (team_id, _comp) = playable_team();
 
-    let run = |choice: Option<ShotChoice>, name: &str| {
+    let run = |choice: Option<Stroke>, name: &str| {
         let mut career = Career::start(&world, team_id, name.into(), 31337).unwrap();
         let fixture = career.next_fixture().unwrap().clone();
         career.start_fixture(&world, fixture.id).unwrap();
         if let Some(live) = career.live.as_mut() {
-            live.sim.input.shot_choice = choice;
+            live.sim.input.stroke = choice;
         }
         let snap = career.advance(1_000_000);
         snap.innings
@@ -443,12 +443,12 @@ fn a_committed_shot_changes_the_innings() {
     };
 
     let passive = run(None, "passive");
-    let boundary = run(Some(ShotChoice::Four), "boundary");
-    let blocked = run(Some(ShotChoice::Dot), "blocked");
+    let boundary = run(Some(Stroke::StraightDrive), "boundary");
+    let blocked = run(Some(Stroke::FrontDefensive), "blocked");
 
     assert_ne!(
         passive, boundary,
-        "going for four must not simulate identically to leaving it to the engine"
+        "a straight drive must not simulate identically to leaving it to the engine"
     );
     assert_ne!(
         passive, blocked,

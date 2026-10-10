@@ -97,6 +97,28 @@ async function bootApp() {
     sourcemap: false,
     plugins: [
       {
+        /*
+          The copied Cricket Coach 2014 artwork (see THIRD-PARTY.md).
+
+          Resolved to a URL rather than inlined. The e2e only needs to know a
+          sprite *resolved* — that the import found a real file — and inlining
+          3.7MB of sprites as base64 on every run would be slow for nothing.
+          A plugin is needed rather than esbuild's `file` loader because this
+          build has no output directory.
+        */
+        name: "stub-assets",
+        setup(build) {
+          build.onResolve({ filter: /\.(bmp|png|jpe?g|wav)$/ }, (args) => ({
+            path: args.path,
+            namespace: "stub-asset",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "stub-asset" }, (args) => ({
+            contents: `export default "/assets/${args.path.split("/").pop()}";`,
+            loader: "js",
+          }));
+        },
+      },
+      {
         name: "stub-css",
         setup(build) {
           build.onResolve({ filter: /\.css$/ }, (args) => ({
@@ -598,86 +620,99 @@ async function scenarioMatch({ window, calls, consoleErrors }) {
   }
 
   /*
-    The shot picker — the batting mechanic.
+    The stroke picker.
 
-    Before this existed the outcome icons were a read-only scoreboard: a batter
-    never chose anything, the engine just resolved a ball. These checks assert
-    the control is real in both directions — it renders, and choosing with it
-    reaches the engine.
+    This control was rebuilt against the original: Cricket Coach 2014 asks which
+    *stroke* you are playing, not which outcome you want, and the tests below
+    check the shape of that rather than the mere presence of buttons. A picker
+    of twelve identical buttons would satisfy any earlier version of this file.
   */
-  // Only the six outcome chips are controls; the wicket chip is a readout and
-  // must be excluded, or "6 buttons" quietly becomes "7".
-  const pickerBtns = $$(window, ".shotpicker .ball--button");
-  check("shot picker rendered", pickerBtns.length === 6,
-    `${pickerBtns.length} shot buttons: ${pickerBtns.map(text).join(" | ")}`);
-  const labels = pickerBtns.map((b) => text(b.querySelector(".ball__label")));
-  check("every shot is labelled with its outcome",
-    labels.length === 6 && labels.join(",") === "0,1,2,3,4,6",
-    JSON.stringify(labels));
-  const chipsWithOdds = pickerBtns.filter((b) => /^\d{1,3}%$/.test(text(b.querySelector(".ball__odds"))));
-  check("odds are priced on every chip",
-    chipsWithOdds.length === 6,
-    `${chipsWithOdds.length}/6 priced — without them the picker is a guess`);
+  const pickerBtns = $$(window, ".shotpicker .strokebtn");
+  check("stroke picker rendered twelve strokes", pickerBtns.length === 12,
+    `${pickerBtns.length} strokes`);
+  const groups = $$(window, ".shotpicker__group");
+  check("strokes are grouped block and attack", groups.length === 2,
+    `${groups.length} groups`);
+  const labels = pickerBtns.map((b) => text(b.querySelector(".strokebtn__label")));
+  check("every stroke is named", labels.every((l) => l.length > 0), JSON.stringify(labels));
+  check("the original's defensive strokes are the block group",
+    text(groups[0]) .includes("Leave") && text(groups[0]).includes("Back Def"),
+    text(groups[0]));
+  check("attacking strokes are not in the block group",
+    !text(groups[0]).includes("Pull") && !text(groups[0]).includes("Cut"),
+    text(groups[0]));
 
-  // The price of the attempt, shown as its own chip. Without it the picker
-  // shows only what a shot wins and hides what it costs, which is the half of
-  // the decision that matters.
+  // The original's artwork, not placeholder chips. This is the detail that
+  // makes the control recognisable to anyone who played the original.
+  const arts = $$(window, ".shotpicker .strokebtn__art");
+  check("each stroke shows the original's sprite", arts.length === 12,
+    `${arts.length} sprites`);
+  const brokenArt = arts.filter((a) => !a.getAttribute("src"));
+  check("stroke sprites resolve to real files", brokenArt.length === 0,
+    `${brokenArt.length} sprites with no src`);
+
+  // Odds are priced, so the choice is informed rather than blind.
+  const priced = pickerBtns.filter((b) => /^\d\.\d\d$/.test(text(b.querySelector(".strokebtn__odds"))));
+  check("every stroke is priced", priced.length === 12,
+    `${priced.length}/12 priced — an unpriced picker is a guess`);
+
   const wicketChip = $$(window, ".shotpicker .ball--w")[0];
-  check("the wicket is priced alongside the shots", !!wicketChip &&
+  check("the wicket is priced alongside the strokes", !!wicketChip &&
     /^\d{1,3}%$/.test(text(wicketChip.querySelector(".ball__odds"))),
     wicketChip ? text(wicketChip) : "no wicket chip");
 
-  const six = $$(window, ".shotpicker .ball--six")[0];
-  if (check("a six is selectable", !!six)) {
-    const callsBefore = calls.length;
-    click(window, six);
+  // Picking must reach the engine, and the engine must agree.
+  const drive = $$(window, ".shotpicker .strokebtn").find((b) =>
+    /Straight Drive/.test(text(b)));
+  if (check("a straight drive is selectable", !!drive)) {
+    const before = calls.length;
+    click(window, drive);
     await delay(350);
-    check("selecting a shot pushes it to the engine",
-      calls.slice(callsBefore).some((c) => c.cmd === "set_match_input" &&
-        c.args?.input?.shot_choice === "six"),
-      JSON.stringify(calls.slice(callsBefore).map((c) => c.cmd)));
-    check("the chosen shot is marked as selected",
-      $$(window, ".shotpicker .ball--chosen").length === 1,
-      `${$$(window, ".shotpicker .ball--chosen").length} marked`);
+    check("selecting a stroke pushes it to the engine",
+      calls.slice(before).some((c) => c.cmd === "set_match_input" &&
+        c.args?.input?.stroke === "straight_drive"),
+      JSON.stringify(calls.slice(before).map((c) => c.cmd)));
+    check("the chosen stroke is marked",
+      $$(window, ".shotpicker .strokebtn--chosen").length === 1,
+      `${$$(window, ".shotpicker .strokebtn--chosen").length} marked`);
 
-    // And the engine agrees, and agrees *differently*: committing to a six
-    // must make a six more likely than it is with no shot chosen. Checking
-    // only that the number is positive would pass against an engine that
-    // ignored the choice entirely, since sixes happen by accident anyway.
-    const committed = await invoke(window, "preview_ball");
-    await invoke(window, "set_match_input", {
-      input: {
-        batting_aggression: 50,
-        keep_strike_toggle: false,
-        hit_and_run_toggle: false,
-        target_bowler_id: 0,
-        field_preset: "balanced",
-        shot_choice: null,
-      },
-    });
-    await delay(200);
-    const passive = await invoke(window, "preview_ball");
-    check("committing to a six raises its odds in the engine",
-      typeof committed?.six === "number" &&
-        typeof passive?.six === "number" &&
-        committed.six > passive.six,
-      `committed ${committed?.six} vs passive ${passive?.six}`);
-    check("committing to a six raises the wicket odds",
-      typeof committed?.out === "number" &&
-        typeof passive?.out === "number" &&
-        committed.out > passive.out,
-      `committed ${committed?.out} vs passive ${passive?.out}`);
-    // And the commitment must be a decisive change, not a nudge. If sixes went
-    // from 4% to 5% the control would be decorative.
-    check("committing to a six is a decisive change, not a nudge",
-      typeof passive?.six === "number" && committed.six > passive.six * 2,
-      `${passive?.six} -> ${committed?.six}`);
+    // The whole point of the rebuild: the delivery must make strokes differ.
+    // If every stroke priced identically, the picker would be asking a question
+    // the engine has no opinion about.
+    const pricedFor = {};
+    for (const label of ["Straight Drive", "Pull", "Sweep", "Forward Def", "Leave"]) {
+      const btn = $$(window, ".shotpicker .strokebtn").find((b) => new RegExp(label).test(text(b)));
+      const o = btn && /^(\d\.\d\d)$/.exec(text(btn.querySelector(".strokebtn__odds")));
+      if (o) pricedFor[label] = Number(o[1]);
+    }
+    // Expected runs, so the defensive strokes must sit at the bottom and the
+    // attacking ones above them. An earlier pass priced "chance of surviving",
+    // which returned 99% for every defensive stroke and 54% for every attacking
+    // one — twelve buttons, two numbers, no information at all.
+    /*
+      Expected runs must separate the strokes, or the picker is asking a
+      question the engine has no opinion about.
 
-    // Clicking again releases it, so the player is never trapped in a shot.
-    click(window, six);
+      Note what is *not* asserted: that leaving differs from forward defensive.
+      In the original's data those two are the same shot in outcome terms —
+      every LEAVE and every FRONT_DEFENSIVE commentary line is a dot ball — so
+      they price alike, and asserting a difference would be asserting a fiction.
+    */
+    const attacking = [pricedFor["Straight Drive"], pricedFor["Pull"], pricedFor["Sweep"]];
+    const defensive = [pricedFor["Forward Def"], pricedFor["Leave"]];
+    check("expected runs separate defending from attacking",
+      Object.values(pricedFor).length === 5 &&
+        Math.min(...attacking) > Math.max(...defensive) * 3,
+      JSON.stringify(pricedFor));
+    check("the attacking strokes differ from each other",
+      Math.max(...attacking) - Math.min(...attacking) > 0.1,
+      JSON.stringify(pricedFor));
+
+    // Clicking again releases it, so the player is never trapped in a stroke.
+    click(window, drive);
     await delay(350);
-    check("clicking a chosen shot again releases it",
-      $$(window, ".shotpicker .ball--chosen").length === 0);
+    check("clicking a chosen stroke again releases it",
+      $$(window, ".shotpicker .strokebtn--chosen").length === 0);
   }
 
   // Autoplay toggles its own label instead of running to completion silently.

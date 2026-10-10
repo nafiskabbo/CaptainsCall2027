@@ -3,13 +3,13 @@
 // structure; this exists to catch the things assertions do not — spacing,
 // alignment, and whether a control is legible in context.
 //
-//   bun tools/shot-match.mjs [out.html] [--shot six]
+//   bun tools/shot-match.mjs [out.html] [--stroke pull]
 
 import { build } from "esbuild";
 import { readFileSync, writeFileSync } from "node:fs";
 
 const outPath = process.argv[2]?.startsWith("--") ? "/tmp/shot-match.html" : process.argv[2] ?? "/tmp/shot-match.html";
-const shotIdx = process.argv.indexOf("--shot");
+const shotIdx = process.argv.indexOf("--stroke");
 const wanted = shotIdx > -1 ? process.argv[shotIdx + 1] : null;
 
 const HARNESS_URL = process.env.CC_HARNESS ?? "http://127.0.0.1:8787";
@@ -45,6 +45,20 @@ const out = await build({
   jsx: "automatic",
   loader: { ".css": "text", ".svg": "text" },
   define: { "process.env.NODE_ENV": '"production"' },
+  plugins: [
+    {
+      // Resolve the copied artwork to a URL without inlining it; this script
+      // only needs the markup, not the pixels.
+      name: "stub-assets",
+      setup(b) {
+        b.onResolve({ filter: /\.(bmp|png|jpe?g|wav)$/ }, (a) => ({ path: a.path, namespace: "stub-asset" }));
+        b.onLoad({ filter: /.*/, namespace: "stub-asset" }, (a) => ({
+          contents: `export default "/assets/${a.path.split("/").pop()}";`,
+          loader: "js",
+        }));
+      },
+    },
+  ],
 });
 
 await call("start_career", { name: "Shot", teamId: 101, seed: 7 });
@@ -62,7 +76,7 @@ if (wanted) {
       hit_and_run_toggle: false,
       target_bowler_id: 0,
       field_preset: "balanced",
-      shot_choice: wanted,
+      stroke: wanted,
     },
   });
 }
@@ -136,7 +150,9 @@ click(btn(/play match/i));
 await new Promise((r) => setTimeout(r, 1500));
 
 if (wanted) {
-  click(window.document.querySelector(`.shotpicker .ball--${wanted}`));
+  const btn = [...window.document.querySelectorAll(".shotpicker .strokebtn")]
+    .find((b) => (b.textContent || "").toLowerCase().includes(wanted.replace(/_/g, " ")));
+  click(btn);
   await new Promise((r) => setTimeout(r, 400));
 }
 

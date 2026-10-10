@@ -170,7 +170,7 @@ export default function WorldScreen({ world, onStartCareer, onWorldChanged }: Pr
             <label className="radio" title="Bat on leather, crowd and wicket cues">
               <input
                 type="checkbox"
-                checked={audio.on}
+                checked={audio.enabled}
                 onChange={(e) => {
                   sound.setEnabled(e.target.checked);
                   setAudio(sound.getSettings());

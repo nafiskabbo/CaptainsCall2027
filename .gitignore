@@ -47,3 +47,10 @@ target/e2e-contract/
 target/e2e-probe/
 target/e2e-p2/
 target/e2e-*/
+
+old-game/
+# Copyrighted assets from Cricket Coach 2014 — private use only, never committed.
+# See THIRD-PARTY.md. Restore with tools/sync-cc2014-assets.sh.
+src/assets/cc2014/outcomes/
+src/assets/cc2014/shots/
+src/assets/cc2014/audio/

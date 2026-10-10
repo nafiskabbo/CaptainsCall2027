@@ -366,6 +366,14 @@ impl SimState {
     /// currently in. Builds the same context as [`Self::bowl_ball`] but consumes
     /// no randomness, so previewing cannot alter the match.
     pub fn preview_ball(&self) -> [f64; 9] {
+        self.preview_ball_with(&self.input)
+    }
+
+    /// The same preview against hypothetical orders.
+    ///
+    /// Takes the input by reference rather than reading `self.input`, so the
+    /// picker can price options it has not committed to.
+    pub fn preview_ball_with(&self, input: &MatchInput) -> [f64; 9] {
         let (Some(striker_id), Some(bowler_id)) = (self.striker_id, self.bowler_id) else {
             return [0.0; 9];
         };
@@ -398,7 +406,7 @@ impl SimState {
             chasing,
             run_rate_needed: rrr,
             minnow_boost: self.minnow_boost(),
-            input: &self.input,
+            input,
             rng: &mut SimRng::new(0),
         };
         outcome_probabilities(&ctx)

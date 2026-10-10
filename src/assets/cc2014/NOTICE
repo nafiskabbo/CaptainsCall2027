@@ -1,0 +1,23 @@
+Cricket Coach 2014 — copyrighted artwork and audio
+====================================================
+
+Copied from a retail installation of Cricket Coach 2014
+(Trade Derby Works / Big Ant Studios, 2014) for private, personal use.
+
+NOT LICENSED FOR REDISTRIBUTION. Do not commit this directory to a public
+remote, do not publish a build containing it, and do not relicense this project
+in a way that would cover these files.
+
+See THIRD-PARTY.md at the repository root.
+
+Contents
+--------
+outcomes/  Outcome icons. Note there is no generic "W": the original shows how
+           a batter was dismissed (BLD bowled, LBW, CT caught, RO run out,
+           STM stumped), which this project reproduces.
+shots/     Stroke sprites. Both the HD set (.png, partial) and the complete
+           set (.bmp). Sprites suffixed _L are the left-handed mirror.
+audio/     Crowd and bat sounds, sn_*.wav.
+
+The original's database and commentary text were not copied. See
+docs/cc2014-model.md.

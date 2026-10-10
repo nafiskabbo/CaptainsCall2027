@@ -89,6 +89,13 @@ export const api = {
    * Used by the shot picker so a committed shot is priced, not guessed.
    */
   previewBall: () => invoke<Record<string, number>>("preview_ball"),
+  /**
+   * The odds with a specific stroke committed, without changing what the match
+   * is actually set to. This is how the picker prices twelve strokes at once:
+   * it must not mutate the live orders to ask "what if I played this?".
+   */
+  previewBallWith: (input: MatchInput) =>
+    invoke<Record<string, number>>("preview_ball_with", { input }),
   /** Advance `count` deliveries and return the new snapshot. */
   simMatch: (count: number) => invoke<MatchSnapshot>("sim_match", { count }),
   /** Fast-forward to the end of the current innings. */

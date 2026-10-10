@@ -5,8 +5,8 @@
 //! from the caller passing `&mut SimRng` (specs FR-13, NFR-7).
 
 use super::state::{
-    BallOutcome, Dismissal, DismissalType, ExtraKind, FieldPreset, Innings, MatchInput, ShotChoice,
-    ShotKind,
+    BallLength, BallMovement, BallOutcome, Dismissal, DismissalType, ExtraKind, FieldPreset,
+    Innings, MatchInput, ShotKind, Stroke,
 };
 use crate::core::rng::{clamp, Distribution, SimRng};
 use crate::core::types::{Format, Player, Team};
@@ -244,89 +244,285 @@ fn build_weights(ctx: &mut BallContext<'_>) -> Vec<f64> {
     }
 
     /*
-        The player's shot choice, applied last so the format anchor above cannot
-        scale the intent back out.
+        The player's stroke, applied last so the format anchor above cannot
+        scale it back out.
 
-        Committing to an outcome moves probability toward it and — crucially —
-        toward an outcome you cannot force, the chance of being dismissed rises
-        with the risk taken. That is the whole decision: a six is worth six runs
-        and is the likeliest thing to get you out. `skill` scales how far the
-        intent is honoured, so a good batter attempts sixs and converts them
-        while a tailender mostly gets bowled or caught.
+        This is the original's model, recovered from `bbbc_shot.csv`: the batter
+        commits to a *stroke*, and the runs follow from how that stroke meets
+        this particular delivery. The previous build committed to an outcome
+        number instead, which is why it was a slot machine — nothing about a
+        "4" told you it was a cut shot to a leg-cutter.
+
+        A defensive stroke nearly always keeps its shape: it survives, and it
+        scores nothing. An attacking stroke is answered against the ball, so the
+        same drive off a yorker and off a bouncer are different shots — and the
+        wicket weight rises with how ambitious the stroke is.
     */
-    if let Some(choice) = ctx.input.shot_choice {
-        let risk = choice.risk();
-        let chosen = choice.index();
-        /*
-            Set the attempt's probability directly rather than nudging weights.
+    if let Some(stroke) = ctx.input.stroke {
+        let suits = stroke_vs_delivery(stroke, delivery_length(ctx), delivery_movement(ctx));
+        let quality = rel.clamp(0.45, 1.8);
 
-            Scaling a weight only shifts probability proportionally, which
-            washed the choice out: committing to a single moved the scoring
-            rate by less than a hundredth of a run per ball. Declaring the shot
-            sets its chance outright, and everything that *fails* is split
-            between the remaining outcomes and being dismissed.
+        if stroke.is_defensive() {
+            /*
+                Block and leave.
 
-            The base rates are the chance a competent batter gets each outcome
-            when they commit to it — far above the unforced baseline, because
-            going for a four is a real attempt, not a lottery. `skill` moves
-            that with the matchup, and the failure is heavily weighted toward
-            the wicket in proportion to the risk, which is the whole decision:
-            a six is worth six and is the likeliest thing to get you out.
-        */
-        let base = match choice {
-            ShotChoice::Dot => 0.72,
-            ShotChoice::One => 0.70,
-            ShotChoice::Two => 0.46,
-            ShotChoice::Three => 0.26,
-            ShotChoice::Four => 0.44,
-            ShotChoice::Six => 0.22,
-        };
-        let p = (base * rel.clamp(0.45, 1.9)).clamp(0.03, 0.93);
-        let fail = 1.0 - p;
-        /*
-            How much of a failed attempt becomes a dismissal.
+                The original's commentary data shows these as dot balls: all
+                twenty-five `FRONT_DEFENSIVE` lines and all twenty-five `LEAVE`
+                lines are zero runs, and only `BACK_DEFENSIVE` ever concedes a
+                single. So the split between them is not a fudge — it is what
+                the data says. Leaving is the least certain of the three,
+                because a ball you chose not to play can still beat you.
+            */
+            let solidity = match stroke {
+                Stroke::Leave => 0.74,
+                Stroke::FrontDefensive => 0.88,
+                _ => 0.80,
+            };
+            let blocked = (solidity * suits * quality).clamp(0.05, 0.95);
+            let wicket = (1.0 - blocked) * 0.55;
+            let dot = blocked * 0.94;
+            let single = blocked * 0.06;
+            w[DOT] = dot;
+            w[ONE] = single;
+            w[TWO] = 0.0;
+            w[THREE] = 0.0;
+            w[FOUR] = 0.0;
+            w[SIX] = 0.0;
+            w[OUT] = wicket;
+            // Extras keep whatever the format gives them, so blocking is not a
+            // way to suppress wides.
+            let extras: f64 = w[WIDE] + w[NOBALL];
+            w[WIDE] *= 0.25;
+            w[NOBALL] *= 0.25;
+            rescale(&mut w, extras * 0.75);
+        } else {
+            /*
+                Attacking.
 
-            Calibrated against the realised distribution, not guessed. Sharing
-            most of the failure into wickets (the first pass used
-            `0.20 + risk * 0.78`) made a six a 70% chance of being out, which is
-            not a gamble anybody takes — it made the most aggressive option
-            strictly dominated. At this rate a six is genuinely tempting but
-            still the likeliest thing to get you out, and rotating for a single
-            is a safe way to keep the board moving.
-        */
-        let wicket_share = (fail * (0.15 + risk * 0.45)).clamp(0.0, fail);
-        let other_share = fail - wicket_share;
+                Built directly rather than by nudging the existing weights.
+                An earlier version scaled the format's weights and left the
+                outcome distribution almost unchanged — every attacking stroke
+                came out worth the same, so the picker was asking a question the
+                engine had no opinion about.
 
-        let rest_other: f64 = (0..w.len())
-            .filter(|i| *i != chosen && *i != OUT)
-            .map(|i| w[i])
-            .sum();
-        if rest_other > 0.0 {
-            w[chosen] = p;
-            w[OUT] = wicket_share;
-            let scale = other_share / rest_other;
-            for (i, weight) in w.iter_mut().enumerate() {
-                if i != chosen && i != OUT {
-                    *weight *= scale;
-                }
-            }
+                The structure is: does it connect at all, and if so what does it
+                find? Boundaries take a share of the connected runs set by how
+                much the stroke is looking for them, and the rest is taken at
+                running rate. Wickets take the failure, plus a slice of the
+                successes — a boundary stroke finds a fielder as often as it
+                finds the rope.
+            */
+            let connect = (0.66 * suits * quality).clamp(0.12, 0.93);
+            let wicket = ((1.0 - connect) * 0.62 + connect * 0.11).clamp(0.02, 0.7);
+
+            // How much of the scoring is looking for the boundary. The
+            // leg-side and cross-bat strokes go looking; the straight ones
+            // often find the gap instead, which is where their singles come
+            // from.
+            let boundary_bias = match stroke {
+                Stroke::Pull | Stroke::Hook | Stroke::Sweep => 0.66,
+                Stroke::Cut => 0.52,
+                _ => 0.44,
+            };
+
+            let run_mass = (1.0 - wicket).clamp(0.05, 0.95);
+            let boundary = run_mass * boundary_bias;
+            let running = run_mass - boundary;
+
+            w[DOT] = 1.0 - run_mass - wicket;
+            w[FOUR] = boundary * 0.70;
+            w[SIX] = boundary * 0.30;
+            w[ONE] = running * 0.56;
+            w[TWO] = running * 0.29;
+            w[THREE] = running * 0.15;
+            w[OUT] = wicket;
+            let extras: f64 = w[WIDE] + w[NOBALL];
+            w[WIDE] = extras * 0.4;
+            w[NOBALL] = extras * 0.4;
+            rescale(&mut w, extras * 0.2);
         }
     }
 
     w.to_vec()
 }
 
+/// Renormalise a weight vector so it sums to one.
+///
+/// The stroke model assigns outcome weights directly rather than by scaling,
+/// so the total has to be brought back to a probability distribution before the
+/// draw. Extras are folded back in at `fold`, since a wides count as a run
+/// without the batter having played a stroke.
+fn rescale(w: &mut [f64; 9], fold: f64) {
+    let mut total: f64 = w.iter().sum();
+    total += fold;
+    if total <= 0.0 {
+        return;
+    }
+    let k = 1.0 / total;
+    for weight in w.iter_mut() {
+        *weight *= k;
+    }
+}
+
+/// How well a stroke suits the delivery it was played to.
+///
+/// This is what makes the model a game rather than a menu: driving at a yorker
+/// and cutting a bouncer are different propositions, and the batter is the one
+/// choosing between them with information they do not fully have. Returns a
+/// multiplier around 1.0 — above one when the stroke fits the ball, below when
+/// it does not.
+pub fn stroke_vs_delivery(stroke: Stroke, length: BallLength, movement: BallMovement) -> f64 {
+    let mut fit: f64 = 1.0;
+
+    // Defensive strokes suit the ball arriving where they expect it.
+    if stroke.is_defensive() {
+        return match length {
+            BallLength::GoodLength => 1.15,
+            BallLength::Yorker => 1.05,
+            BallLength::ShortOff => 0.8,
+            BallLength::Bouncer => 0.65,
+        };
+    }
+
+    // Attacking strokes: a drive or cut wants width to work with, and a pull or
+    // hook wants the ball short.
+    match stroke {
+        Stroke::Pull | Stroke::Hook => {
+            fit *= match length {
+                BallLength::ShortOff => 1.25,
+                BallLength::Bouncer => 1.1,
+                BallLength::GoodLength => 0.7,
+                BallLength::Yorker => 0.6,
+            };
+            if matches!(movement, BallMovement::LegBreak | BallMovement::LegCutter) {
+                fit *= 1.15;
+            }
+        }
+        Stroke::Sweep => {
+            fit *= match length {
+                BallLength::ShortOff => 1.1,
+                BallLength::GoodLength => 0.9,
+                BallLength::Yorker => 0.55,
+                BallLength::Bouncer => 0.6,
+            };
+            // A turning or slower ball is the sweep's own.
+            if matches!(
+                movement,
+                BallMovement::LegBreak | BallMovement::OffBreak | BallMovement::Slower
+            ) {
+                fit *= 1.2;
+            }
+        }
+        Stroke::Cut | Stroke::OffDrive | Stroke::CoverDrive => {
+            fit *= match length {
+                BallLength::ShortOff => 1.15,
+                BallLength::GoodLength => 1.0,
+                BallLength::Yorker => 0.75,
+                BallLength::Bouncer => 0.6,
+            };
+            if matches!(
+                movement,
+                BallMovement::Outswing | BallMovement::OffCutter | BallMovement::Slower
+            ) {
+                fit *= 1.1;
+            }
+        }
+        Stroke::StraightDrive | Stroke::OnDrive => {
+            fit *= match length {
+                BallLength::GoodLength => 1.1,
+                BallLength::ShortOff => 0.9,
+                BallLength::Yorker => 0.8,
+                BallLength::Bouncer => 0.5,
+            };
+        }
+        Stroke::LegGlance => {
+            fit *= match length {
+                BallLength::GoodLength => 1.1,
+                BallLength::Yorker => 0.9,
+                BallLength::ShortOff => 0.85,
+                BallLength::Bouncer => 0.65,
+            };
+            if matches!(movement, BallMovement::LegBreak | BallMovement::Slower) {
+                fit *= 1.15;
+            }
+        }
+        Stroke::Leave | Stroke::FrontDefensive | Stroke::BackDefensive => {}
+    }
+
+    // A wrong'un or a speciality is harder to read than the plan called for.
+    if matches!(movement, BallMovement::WrongUn | BallMovement::Speciality) {
+        fit *= 0.9;
+    }
+    fit.clamp(0.3, 1.45)
+}
+
+/// Classify the delivery on the original's length axis.
+///
+/// The original decides this from the bowler's plan and the situation; here it
+/// is drawn from the phase of the innings, so the same bowler produces different
+/// balls at different times rather than repeating a fixed over.
+fn delivery_length(ctx: &mut BallContext<'_>) -> BallLength {
+    let over = ctx.over;
+    let limited = ctx.format != Format::Test;
+    let total = ctx.format.powerplay_overs() + if ctx.format == Format::T20 { 13 } else { 33 };
+    if limited && over + 1 >= total {
+        // Death overs: yorkers and slower balls.
+        if ctx.rng.chance(0.34) {
+            BallLength::Yorker
+        } else {
+            BallLength::GoodLength
+        }
+    } else if over < ctx.format.powerplay_overs() {
+        if ctx.rng.chance(0.30) {
+            BallLength::ShortOff
+        } else {
+            BallLength::GoodLength
+        }
+    } else if ctx.rng.chance(0.22) {
+        BallLength::Yorker
+    } else if ctx.rng.chance(0.12) {
+        BallLength::ShortOff
+    } else {
+        BallLength::GoodLength
+    }
+}
+
+/// Classify the delivery on the original's movement axis.
+///
+/// Which bowler you are facing decides the family: a spinner turns it, a
+/// pacer swings it.
+fn delivery_movement(ctx: &mut BallContext<'_>) -> BallMovement {
+    let spin = ctx.bowler.skills.spin.norm();
+    let pace = ctx.bowler.skills.pace.norm();
+    if spin > pace {
+        match ctx.rng.below(100) {
+            0..=39 => BallMovement::LegBreak,
+            40..=79 => BallMovement::OffBreak,
+            _ => BallMovement::Slower,
+        }
+    } else {
+        match ctx.rng.below(100) {
+            0..=27 => BallMovement::Inswing,
+            28..=55 => BallMovement::Outswing,
+            56..=69 => BallMovement::Straight,
+            70..=82 => BallMovement::OffCutter,
+            83..=92 => BallMovement::LegCutter,
+            93..=96 => BallMovement::Slower,
+            97..=98 => BallMovement::WrongUn,
+            _ => BallMovement::Speciality,
+        }
+    }
+}
 /// Deliver a single ball and resolve the outcome.
 pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
     let w = build_weights(ctx);
     let wicket_ctx = WicketContext::from(ctx);
     let rng: &mut SimRng = &mut *ctx.rng;
-    let dist = Distribution::new(w);
+    let dist = Distribution::new(w.to_vec());
     let idx = dist.pick(rng);
 
-    // Whether the delivery produced the outcome that was attempted, so the UI
-    // can tell the player whether their shot came off.
-    let attempted = ctx.input.shot_choice;
+    // Which stroke the batter committed to, if any.
+    let attempted = ctx.input.stroke;
 
     let outcome = match idx {
         DOT => plain(0, false, rng),
@@ -355,7 +551,6 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
             direction_deg: (rng.below(50) + 70) as u16,
             shot: ShotKind::Beaten,
             attempted: None,
-            shot_came_off: None,
         },
         NOBALL => BallOutcome {
             runs: 0,
@@ -375,24 +570,15 @@ pub fn resolve_ball(ctx: &mut BallContext<'_>) -> BallOutcome {
             direction_deg: (rng.below(120) + 30) as u16,
             shot: ShotKind::Driven,
             attempted: None,
-            shot_came_off: None,
         },
         _ => plain(0, false, rng),
     };
-    // Tag the delivery with what the batter was attempting, so the UI can say
-    // whether the shot came off. `None` (no choice) leaves it unset.
+    // Report the stroke that was played. Unlike the outcome-number model there
+    // is no "did you get what you asked for" test: the runs were never the thing
+    // asked for, so a cover drive that finds a fielder was not a failed request.
     if let Some(target) = attempted {
-        let got = match outcome.runs {
-            0 => ShotChoice::Dot,
-            r => match ShotChoice::from_runs(r) {
-                Some(c) => c,
-                // 5 cannot happen off the bat; treat as "not the shot asked for".
-                None => return outcome,
-            },
-        };
         return BallOutcome {
             attempted: Some(target),
-            shot_came_off: Some(got == target && outcome.dismissal.is_none()),
             ..outcome
         };
     }
@@ -443,7 +629,6 @@ fn four(rng: &mut SimRng) -> BallOutcome {
         direction_deg,
         shot: ShotKind::Driven,
         attempted: None,
-        shot_came_off: None,
     }
 }
 
@@ -473,7 +658,6 @@ fn six(rng: &mut SimRng) -> BallOutcome {
         direction_deg,
         shot: ShotKind::Lofted,
         attempted: None,
-        shot_came_off: None,
     }
 }
 
@@ -526,7 +710,6 @@ fn plain(runs: u32, strike_changes: bool, rng: &mut SimRng) -> BallOutcome {
         direction_deg,
         shot,
         attempted: None,
-        shot_came_off: None,
     }
 }
 
@@ -608,7 +791,6 @@ fn wicket(ctx: &WicketContext, rng: &mut SimRng) -> BallOutcome {
         direction_deg,
         shot,
         attempted: None,
-        shot_came_off: None,
     }
 }
 

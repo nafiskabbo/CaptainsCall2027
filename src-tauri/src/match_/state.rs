@@ -58,87 +58,187 @@ pub struct BallOutcome {
     pub shot: ShotKind,
     /// The outcome the batter attempted, when they chose one.
     #[serde(default)]
-    pub attempted: Option<ShotChoice>,
-    /// Whether the attempt produced the outcome asked for.
-    #[serde(default)]
-    pub shot_came_off: Option<bool>,
+    pub attempted: Option<Stroke>,
 }
 
-/// The outcome the batter committed to on this delivery, if any.
+/// A stroke the batter can commit to on a delivery.
 ///
-/// Set only when the player made an explicit shot choice, so the UI can show
-/// "you went for a six" and whether it came off.
+/// These are the original's twelve, in its own codes, from
+/// `db/db2014/bbbc_shot.csv`. The earlier build had the player pick an outcome
+/// number — `0` through `6` — which felt right and was wrong: the original asks
+/// which *stroke* you are playing, and the runs follow from how that stroke
+/// meets a particular delivery. Picking "cover drive" against a good-length
+/// inswinger is a decision that can go several ways; picking "4" is a slot
+/// machine with four buttons.
+///
+/// See `docs/cc2014-model.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ShotChoice {
-    Dot,
-    One,
-    Two,
-    Three,
-    Four,
-    Six,
+pub enum Stroke {
+    Leave,
+    FrontDefensive,
+    BackDefensive,
+    StraightDrive,
+    CoverDrive,
+    LegGlance,
+    Cut,
+    Pull,
+    Hook,
+    Sweep,
+    OnDrive,
+    OffDrive,
 }
 
-impl ShotChoice {
-    /// Index into the engine's outcome distribution.
-    pub fn index(self) -> usize {
+impl Stroke {
+    /// The original's numeric code, kept so commentary tables and saved games
+    /// line up with the source data.
+    pub fn code(self) -> u32 {
         match self {
-            ShotChoice::Dot => 0,
-            ShotChoice::One => 1,
-            ShotChoice::Two => 2,
-            ShotChoice::Three => 3,
-            ShotChoice::Four => 4,
-            ShotChoice::Six => 5,
+            Stroke::Leave => 20100,
+            Stroke::FrontDefensive => 20101,
+            Stroke::BackDefensive => 20102,
+            Stroke::StraightDrive => 20103,
+            Stroke::CoverDrive => 20104,
+            Stroke::LegGlance => 20105,
+            Stroke::Cut => 20106,
+            Stroke::Pull => 20107,
+            Stroke::Hook => 20108,
+            Stroke::Sweep => 20109,
+            Stroke::OnDrive => 20111,
+            Stroke::OffDrive => 20112,
         }
     }
 
-    /// How much upside the player is asking for, and so how much risk they take.
-    ///
-    /// This is the heart of the decision: a dot is safe and worth nothing, a
-    /// six is worth six but is the likeliest thing to be missed and taken.
-    pub fn risk(self) -> f64 {
-        match self {
-            ShotChoice::Dot => 0.0,
-            ShotChoice::One => 0.18,
-            ShotChoice::Two => 0.30,
-            ShotChoice::Three => 0.42,
-            ShotChoice::Four => 0.58,
-            ShotChoice::Six => 0.86,
-        }
-    }
+    pub const ALL: [Stroke; 12] = [
+        Stroke::Leave,
+        Stroke::FrontDefensive,
+        Stroke::BackDefensive,
+        Stroke::StraightDrive,
+        Stroke::CoverDrive,
+        Stroke::LegGlance,
+        Stroke::Cut,
+        Stroke::Pull,
+        Stroke::Hook,
+        Stroke::Sweep,
+        Stroke::OnDrive,
+        Stroke::OffDrive,
+    ];
 
+    /// Short label for the picker.
     pub fn label(self) -> &'static str {
         match self {
-            ShotChoice::Dot => "0",
-            ShotChoice::One => "1",
-            ShotChoice::Two => "2",
-            ShotChoice::Three => "3",
-            ShotChoice::Four => "4",
-            ShotChoice::Six => "6",
+            Stroke::Leave => "Leave",
+            Stroke::FrontDefensive => "Forward Def",
+            Stroke::BackDefensive => "Back Def",
+            Stroke::StraightDrive => "Straight Drive",
+            Stroke::CoverDrive => "Cover Drive",
+            Stroke::LegGlance => "Leg Glance",
+            Stroke::Cut => "Cut",
+            Stroke::Pull => "Pull",
+            Stroke::Hook => "Hook",
+            Stroke::Sweep => "Sweep",
+            Stroke::OnDrive => "On Drive",
+            Stroke::OffDrive => "Off Drive",
         }
     }
 
-    pub fn all() -> [ShotChoice; 6] {
-        [
-            ShotChoice::Dot,
-            ShotChoice::One,
-            ShotChoice::Two,
-            ShotChoice::Three,
-            ShotChoice::Four,
-            ShotChoice::Six,
-        ]
+    /// The original's sprite name, without extension.
+    pub fn sprite(self) -> &'static str {
+        match self {
+            Stroke::Leave => "SHOT_LEAVE",
+            Stroke::FrontDefensive => "SHOT_FRDEF",
+            Stroke::BackDefensive => "SHOT_BDEF",
+            Stroke::StraightDrive => "SHOT_STRDRV",
+            Stroke::CoverDrive => "SHOT_CDRIVE",
+            Stroke::LegGlance => "SHOT_LEGGLANCE",
+            Stroke::Cut => "SHOT_CUT",
+            Stroke::Pull => "SHOT_PULL",
+            Stroke::Hook => "SHOT_HOOK",
+            Stroke::Sweep => "SHOT_SWEEP",
+            Stroke::OnDrive => "SHOT_ONDRIVE",
+            Stroke::OffDrive => "SHOT_DRIVE",
+        }
     }
 
-    pub fn from_runs(runs: u32) -> Option<Self> {
-        Some(match runs {
-            0 => ShotChoice::Dot,
-            1 => ShotChoice::One,
-            2 => ShotChoice::Two,
-            3 => ShotChoice::Three,
-            4 => ShotChoice::Four,
-            6 => ShotChoice::Six,
-            _ => return None,
-        })
+    /// Whether the stroke attacks.
+    ///
+    /// This is the axis the game plays on, and it is visible in the commentary
+    /// data: every `LEAVE` and `FRONT_DEFENSIVE` line is a dot ball, while
+    /// `STRAIGHTDRIVE` spans 0 through 6 and dismissal. Defensive strokes cannot
+    /// score much and cannot get you out; attacking strokes can do both.
+    pub fn is_defensive(self) -> bool {
+        matches!(
+            self,
+            Stroke::Leave | Stroke::FrontDefensive | Stroke::BackDefensive
+        )
+    }
+
+    /// Whether the stroke is played to the leg side.
+    pub fn is_leg_side(self) -> bool {
+        matches!(
+            self,
+            Stroke::Pull | Stroke::Hook | Stroke::Sweep | Stroke::LegGlance
+        )
+    }
+}
+
+/// Where and how the ball was bowled, on the original's two axes.
+///
+/// The game classifies every delivery before the batter plays a shot, so the
+/// stroke is answered against a specific ball rather than in the abstract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BallLength {
+    GoodLength,
+    ShortOff,
+    Yorker,
+    Bouncer,
+}
+
+impl BallLength {
+    /// The original's 8xxx code.
+    pub fn code(self) -> u32 {
+        match self {
+            BallLength::GoodLength => 8001,
+            BallLength::ShortOff => 8002,
+            BallLength::Yorker => 8003,
+            BallLength::Bouncer => 8004,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BallMovement {
+    Straight,
+    Inswing,
+    Outswing,
+    OffCutter,
+    LegCutter,
+    Slower,
+    LegBreak,
+    OffBreak,
+    StraightOne,
+    WrongUn,
+    Speciality,
+}
+
+impl BallMovement {
+    /// The original's 9xxx code.
+    pub fn code(self) -> u32 {
+        match self {
+            BallMovement::Straight => 9001,
+            BallMovement::Inswing => 9002,
+            BallMovement::Outswing => 9003,
+            BallMovement::OffCutter => 9004,
+            BallMovement::LegCutter => 9005,
+            BallMovement::Slower => 9006,
+            BallMovement::LegBreak => 9007,
+            BallMovement::OffBreak => 9008,
+            BallMovement::StraightOne => 9009,
+            BallMovement::WrongUn => 9010,
+            BallMovement::Speciality => 9011,
+        }
     }
 }
 
@@ -208,7 +308,7 @@ pub struct MatchInput {
     /// the uninfluenced simulation, which is what CPU-vs-CPU and career
     /// auto-simulation use.
     #[serde(default)]
-    pub shot_choice: Option<ShotChoice>,
+    pub stroke: Option<Stroke>,
 }
 
 impl Default for MatchInput {
@@ -219,7 +319,7 @@ impl Default for MatchInput {
             hit_and_run_toggle: false,
             target_bowler_id: 0,
             field_preset: FieldPreset::Balanced,
-            shot_choice: None,
+            stroke: None,
         }
     }
 }

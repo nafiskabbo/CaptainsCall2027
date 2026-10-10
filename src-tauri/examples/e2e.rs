@@ -650,6 +650,23 @@ fn dispatch(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, St
             }
             Ok(serde_json::Value::Object(map))
         }
+        "preview_ball_with" => {
+            let input = arg_json(args, "input")?;
+            let career = career()?;
+            let live = career
+                .live
+                .as_ref()
+                .ok_or_else(|| "no live match".to_string())?;
+            let p = live.sim.preview_ball_with(&input);
+            const NAMES: [&str; 9] = [
+                "dot", "one", "two", "three", "four", "six", "out", "wide", "no_ball",
+            ];
+            let mut map = serde_json::Map::new();
+            for (i, n) in NAMES.iter().enumerate() {
+                map.insert((*n).to_string(), serde_json::json!(p[i]));
+            }
+            Ok(serde_json::Value::Object(map))
+        }
         "sim_match" => {
             let count = arg_u32(args, "count")?;
             let mut career = career()?;

@@ -10,10 +10,11 @@ import type {
   Format,
   MatchInput,
   MatchSnapshot,
-  ShotChoice,
+  Stroke,
   World,
 } from "../types";
-import { SHOT_CHOICES, SHOT_LABEL } from "../types";
+import { STROKES, STROKE_LABEL, isDefensiveStroke } from "../types";
+import { strokeSprite } from "../lib/cc2014-assets";
 import MatchView from "./MatchView";
 import { Button, Meter, Panel, Stat } from "../ui";
 import ManhattanChart from "../components/ManhattanChart";
@@ -90,7 +91,7 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
     hit_and_run_toggle: false,
     target_bowler_id: 0,
     field_preset: "balanced",
-    shot_choice: null,
+    stroke: null,
   });
   const input = orders;
   const patchOrders = (patch: Partial<MatchInput>) =>
@@ -144,20 +145,38 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
     orders are pushed, because the preview reflects the committed shot — picking
     "6" and seeing its odds fall is the feedback that makes the risk legible.
   */
-  const [odds, setOdds] = useState<Partial<Record<ShotChoice, number>>>({});
+  /*
+    Each stroke priced as *expected runs for that delivery*, not "chance of
+    surviving".
+
+    An earlier pass showed `1 - P(wicket)`, which was worse than useless: every
+    attacking stroke came out at 54% and every defensive one at 99%, so the
+    picker told the player nothing while appearing to. Expected runs is what a
+    batter is actually weighing, and it separates the strokes properly — a
+    cover drive and a sweep off the same ball are worth different amounts.
+  */
+  const [odds, setOdds] = useState<Partial<Record<Stroke, number>>>({});
   const [outOdds, setOutOdds] = useState<number | undefined>(undefined);
   useEffect(() => {
     let stale = false;
-    api
-      .previewBall()
-      .then((p) => {
+    void (async () => {
+      const p = await api.previewBall().catch(() => undefined);
+      if (p) {
+        // The engine prices each stroke by re-rolling its distribution with
+        // that stroke committed, so the odds shown are the ones the next ball
+        // will actually be rolled against.
+        const next: Partial<Record<Stroke, number>> = {};
+        await Promise.all(
+          STROKES.map(async (s) => {
+            const o = await api.previewBallWith({ ...input, stroke: s }).catch(() => null);
+            next[s] = o ? expectedRuns(o) : undefined;
+          }),
+        );
         if (stale) return;
-        const next: Partial<Record<ShotChoice, number>> = {};
-        for (const c of SHOT_CHOICES) next[c] = p[c] ?? 0;
         setOdds(next);
         setOutOdds(p.out);
-      })
-      .catch(() => undefined);
+      }
+    })();
     return () => {
       stale = true;
     };
@@ -225,7 +244,6 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
 
   // Nation short code, used on the scorebug the way the original shows "ENG 43/1".
   const batCode = (battingTeam?.name ?? "---").slice(0, 3).toUpperCase();
-  const bowlCode = (bowlingTeam?.name ?? "---").slice(0, 3).toUpperCase();
 
   /**
    * The last few overs rebuilt as ball-by-ball rows.
@@ -484,88 +502,80 @@ export default function MatchScreen({ world, snapshot, onSnapshot, onExit, optio
           </div>
 
           {/*
-            The shot selector. This is the batting mechanic: you commit to an
-            outcome and the engine resolves that attempt. Committing raises the
-            chance of the outcome you asked for *and* the chance of being
-            dismissed, by an amount that scales with how much the shot risks —
-            so the choice is a real trade, not a formality.
+            The stroke picker.
 
-            The icons are the same chips used in the over grid below, which is
-            how the original does it: one control, read as both an input and a
-            record of what happened.
+            This is the original's mechanic, recovered from
+            `db/db2014/bbbc_shot.csv`: you choose a *stroke*, and the runs follow
+            from how that stroke meets the delivery in front of you. The previous
+            build asked for an outcome number instead, which made it a slot
+            machine — nothing about choosing "4" told you it was a cut shot to a
+            leg-cutter, so there was no decision to think about.
+
+            Twelve strokes, grouped the way the game groups them: block and leave
+            at one end, attack at the other. Each chip is priced from the
+            engine's own distribution for the bowler currently in.
           */}
           {!complete && (
             <div className="shotpicker">
-              <span className="shotpicker__label">
-                Play the shot
-                <span className="muted"> — pick an outcome to commit to it</span>
-              </span>
-              {SHOT_CHOICES.map((choice) => (
-                <button
-                  key={choice}
-                  type="button"
-                  className={[
-                    "ball",
-                    `ball--${choice}`,
-                    "ball--button",
-                    orders.shot_choice === choice ? "ball--chosen" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={() =>
-                    patchOrders({
-                      shot_choice: orders.shot_choice === choice ? null : choice,
-                    })
-                  }
-                  aria-pressed={orders.shot_choice === choice}
-                  title={
-                    orders.shot_choice === choice
-                      ? "Click to let the engine choose"
-                      : `Attempt ${SHOT_LABEL[choice]}`
-                  }
-                >
-                  <span className="ball__label">{SHOT_LABEL[choice]}</span>
-                  {/*
-                    The odds of this shot coming off, straight from the engine's
-                    own distribution for this bowler. Without them the picker is a
-                    guess with six buttons; with them it is a priced decision.
-                  */}
-                  {odds[choice] !== undefined && (
-                    <em className="ball__odds">{Math.round(odds[choice] * 100)}%</em>
-                  )}
-                </button>
-              ))}
-              {/*
-                The price of the attempt, as its own chip.
+              <div className="shotpicker__group">
+                <span className="shotpicker__label">Block</span>
+                {STROKES.filter(isDefensiveStroke).map((s) => (
+                  <StrokeChip
+                    key={s}
+                    stroke={s}
+                    chosen={orders.stroke === s}
+                    odds={odds[s]}
+                    onPick={() =>
+                      patchOrders({ stroke: orders.stroke === s ? null : s })
+                    }
+                  />
+                ))}
+              </div>
+              <div className="shotpicker__group">
+                <span className="shotpicker__label">Attack</span>
+                {STROKES.filter((s) => !isDefensiveStroke(s)).map((s) => (
+                  <StrokeChip
+                    key={s}
+                    stroke={s}
+                    chosen={orders.stroke === s}
+                    odds={odds[s]}
+                    onPick={() =>
+                      patchOrders({ stroke: orders.stroke === s ? null : s })
+                    }
+                  />
+                ))}
+                {/*
+                  The price of an attacking shot, in the same visual language
+                  as the strokes themselves.
 
-                This is not decoration: it is the other half of every decision in
-                this picker. Choosing a six because it is worth 23% while the
-                wicket sits at 41% would be indefensible — so the wicket is
-                shown in the same visual language as the runs, where the player
-                is already comparing. An earlier pass printed a hard-coded "risk
-                86%" from a static table, which had nothing to do with the
-                number the engine actually rolls and quietly contradicted the
-                real odds sitting next to it.
-              */}
-              {outOdds !== undefined && (
-                <span
-                  className={[
-                    "ball",
-                    "ball--w",
-                    "ball--chip",
-                    "ball--readonly",
-                    outOdds > (orders.shot_choice ? (odds[orders.shot_choice] ?? 0) : 0)
-                      ? "ball--danger"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  title="Chance of being dismissed on this delivery"
-                >
-                  <span className="ball__label">W</span>
-                  <em className="ball__odds">{Math.round(outOdds * 100)}%</em>
-                </span>
-              )}
+                  This is the other half of every decision in this control.
+                  Playing a stroke because it is worth a third of the time while
+                  the wicket sits at nearly half would be indefensible, so the
+                  wicket is shown where the player is already comparing. It
+                  turns red when being out is likelier than the stroke coming
+                  off — which, for the ambitious strokes, it usually is.
+                */}
+                {outOdds !== undefined && (
+                  <span
+                    className={[
+                      "ball",
+                      "ball--w",
+                      "ball--chip",
+                      "ball--readonly",
+                      !isDefensiveStroke(orders.stroke ?? "leave") &&
+                        outOdds > 0.2
+                        ? "ball--danger"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    title="Chance of being dismissed on this delivery"
+                  >
+                    <span className="ball__label">W</span>
+                    <em className="ball__odds">{Math.round(outOdds * 100)}%</em>
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -870,6 +880,78 @@ function ballLabel(b: BallOutcome): string {
   if (b.is_boundary_six) return "6";
   if (b.runs > 0) return String(b.runs);
   return "·";
+}
+
+/**
+ * One stroke in the picker: the original's sprite, and what it is worth here.
+ *
+ * The sprite is the original's own artwork (`src/assets/cc2014/shots`, see
+ * THIRD-PARTY.md), which is the point — the player recognises the control
+ * because it looks like the control they used in 2014.
+ */
+function StrokeChip({
+  stroke,
+  chosen,
+  odds,
+  onPick,
+}: {
+  stroke: Stroke;
+  chosen: boolean;
+  odds?: number;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={[
+        "strokebtn",
+        chosen ? "strokebtn--chosen" : "",
+        isDefensiveStroke(stroke) ? "strokebtn--def" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={onPick}
+      aria-pressed={chosen}
+      title={chosen ? "Click to let the engine choose" : STROKE_LABEL[stroke]}
+    >
+      <img
+        className="strokebtn__art"
+        src={strokeSprite(stroke)}
+        alt=""
+        aria-hidden="true"
+      />
+      <span className="strokebtn__label">{STROKE_LABEL[stroke]}</span>
+      {odds !== undefined && <em className="strokebtn__odds">{odds.toFixed(2)}</em>}
+    </button>
+  );
+}
+
+/**
+ * Expected runs off one delivery, from an outcome distribution.
+ *
+ * The distribution is keyed by outcome *name*, not by run count — the engine
+ * returns `{ dot, one, two, three, four, six, out, wide, no_ball }`. Reading
+ * the keys as numbers silently yields zero for everything, which is the kind
+ * of bug that looks like a rendering problem rather than a logic one.
+ */
+const OUTCOME_RUNS: Record<string, number> = {
+  dot: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  six: 6,
+  out: 0,
+  wide: 1,
+  no_ball: 1,
+};
+
+function expectedRuns(p: Record<string, number>): number {
+  let e = 0;
+  for (const [k, v] of Object.entries(p)) {
+    e += (OUTCOME_RUNS[k] ?? 0) * (v ?? 0);
+  }
+  return e;
 }
 
 /** 1st, 2nd, 3rd, 4th, 11th… */

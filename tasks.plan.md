@@ -342,3 +342,79 @@ against the behaviour it was written for.
 2. Engine PRs must include tests; no test = no merge.
 3. Contract changes: bump `specs/requirement.md` + this file first, code second.
 4. No 3D assets, no real names, no trademarked league names in shipped DB.
+
+## REVERSE ENGINEERING — Cricket Coach 2014, from an installed copy (2026-10-10)
+
+An installed copy of the original was added at `old-game/` (git-ignored). The
+batting mechanic shipped in the previous commit was a guess; the original's data
+files show it was wrong in kind, and this pass rebuilds it against what is
+actually there.
+
+### What the original does
+
+`db/db2014/bbbc_shot.csv` and `bbbc_ball.csv` hold the whole model in tagged CSV.
+The player commits to a **stroke** — one of twelve, `SHOT_LEAVE` (20100) through
+`SHOT_OFFDRIVE` (20112) — not to an outcome number. The runs follow from how the
+stroke meets the delivery, which is classified first on two axes: length
+(4 codes) and movement (11 codes), crossed with 7 bowler types.
+
+So the previous outcome-number picker was a slot machine: nothing about choosing
+"4" said it was a cut shot to a leg-cutter, because it wasn't a shot at all.
+
+### Done
+
+- [x] `tools/extract-cc2014-model.mjs` parses the original's data files into
+      `data/reference/cc2014-model.json`. Self-checks: it fails loudly if the
+      model stops parsing as expected. It copies no assets and no commentary
+      prose — identifiers, tags and structure only.
+- [x] `docs/cc2014-model.md` — the recovered model, and what is still unknown.
+- [x] `Stroke` replaces `ShotChoice` in the engine, keeping the original's codes.
+- [x] `BallLength` and `BallMovement` added; `stroke_vs_delivery` decides which
+      stroke suits the ball, so the delivery changes which shot is a good idea.
+- [x] Defensive strokes block and leave; attacking strokes span the outcome
+      range including dismissal. The split follows the commentary data, where
+      every LEAVE and FRONT_DEFENSIVE line is a dot ball.
+- [x] Picker shows twelve strokes grouped block and attack, priced as expected
+      runs for that delivery against the bowler in, with the wicket's chance
+      shown alongside.
+- [x] Assets copied from `old-game/` into `src/assets/cc2014/`, git-ignored, with
+      `THIRD-PARTY.md` and `tools/sync-cc2014-assets.sh` to restore them.
+
+### Fixed en route
+
+- **`bun run test` was checking nothing.** `tsc --noEmit` against a
+  solution-style tsconfig with `files: []` exits 0 without reading a single file,
+  so the script reported green through several rounds of broken code. Now
+  `tsc -b --force`, which immediately surfaced four real errors it had been
+  hiding — including a sound checkbox bound to `audio.on` when the field is
+  `audio.enabled`, so it never reflected the stored setting.
+- The attacking branch of the stroke model scaled the format's weights and left
+  the distribution nearly unchanged: every attacking stroke priced the same, so
+  the picker asked a question the engine had no opinion about. Now assigned
+  directly.
+- `expectedRuns` read the engine's outcome *names* as numbers, returning 0 for
+  everything. It looked like a rendering bug.
+
+### Guards
+
+New `src-tauri/tests/strokes.rs`. Each was confirmed to fail against the
+behaviour it targets first:
+
+- A committed stroke must change the innings — fails if `ctx.input.stroke` is
+  ignored.
+- Defensive blocks, attacking risks — fails if the split is removed.
+- Stroke codes match the original's, since commentary tables key on them.
+- The delivery decides which stroke is safe — checked directly against
+  `stroke_vs_delivery`. An earlier version asserted this through simulated
+  innings and passed with the delivery factored out, because driving and
+  pulling differ in ambition anyway.
+
+### Still unknown
+
+- The probability constants, which are in the packed binary.
+- What aggression levels `19000`-`19004` mean in plain terms.
+- `bowlplans.csv`: 39 scripted delivery sequences are parsed but unused. A whole
+  tactical layer the project does not have.
+- The original's commentary table is incomplete — `COVERDRIVE` has no lines at
+  all and six strokes have one or two. Not a parsing bug; the shipped game is
+  like that.

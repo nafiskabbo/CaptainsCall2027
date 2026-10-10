@@ -53,13 +53,6 @@ const AFTER_HIT = 0.95;
 const SETTLE = 0.5;
 const TOTAL = RUN_UP + TO_PITCH + AFTER_HIT + SETTLE;
 
-/** How far along its path the ball is, and how high it flies. */
-interface BallState {
-  x: number;
-  y: number;
-  lift: number;
-}
-
 export default function MatchView({
   snapshot,
   fielderNames,
@@ -68,7 +61,6 @@ export default function MatchView({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const raf = useRef(0);
-  const clock = useRef(0);
 
   const innings = snapshot?.innings[snapshot.current_innings] ?? null;
   const seed = snapshot?.seed ?? 1;

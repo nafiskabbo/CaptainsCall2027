@@ -152,9 +152,7 @@ export interface BallOutcome {
   direction_deg: number;
   shot: ShotKind;
   /** The outcome the batter attempted, when they chose one. */
-  attempted: ShotChoice | null;
-  /** Whether the attempt produced the outcome asked for. */
-  shot_came_off: boolean | null;
+  attempted: Stroke | null;
 }
 
 // Rust: FieldPreset with #[serde(rename_all = "snake_case")]
@@ -166,33 +164,89 @@ export type FieldPreset =
   | "spin_trap";
 
 /**
- * The outcome a batter commits to on a delivery (`ShotChoice` in Rust).
+ * A stroke the batter commits to on a delivery (`Stroke` in Rust).
  *
- * This is the batting mechanic: you pick a shot and the engine resolves that
- * attempt, weighted by the matchup and by how much risk the shot carries.
- * Going for a boundary scores more and gets you out more.
+ * These are Cricket Coach 2014's twelve, in the order the original declares
+ * them in `db/db2014/bbbc_shot.csv`. The previous build had the player pick an
+ * outcome number (`0` through `6`), which was a slot machine: nothing about
+ * picking "4" said it was a cut shot to a leg-cutter.
+ *
+ * In the original you choose a stroke and the runs follow from how that stroke
+ * meets the ball. See `docs/cc2014-model.md`.
  */
-export type ShotChoice = "dot" | "one" | "two" | "three" | "four" | "six";
+export type Stroke =
+  | "leave"
+  | "front_defensive"
+  | "back_defensive"
+  | "straight_drive"
+  | "cover_drive"
+  | "leg_glance"
+  | "cut"
+  | "pull"
+  | "hook"
+  | "sweep"
+  | "on_drive"
+  | "off_drive";
 
-export const SHOT_CHOICES: ShotChoice[] = ["dot", "one", "two", "three", "four", "six"];
+export const STROKES: Stroke[] = [
+  "leave",
+  "front_defensive",
+  "back_defensive",
+  "straight_drive",
+  "cover_drive",
+  "leg_glance",
+  "cut",
+  "pull",
+  "hook",
+  "sweep",
+  "on_drive",
+  "off_drive",
+];
 
-/** The character shown on a shot icon, matching the engine's labels. */
-export const SHOT_LABEL: Record<ShotChoice, string> = {
-  dot: "0",
-  one: "1",
-  two: "2",
-  three: "3",
-  four: "4",
-  six: "6",
+/** Label shown on the picker, matching the original's own naming. */
+export const STROKE_LABEL: Record<Stroke, string> = {
+  leave: "Leave",
+  front_defensive: "Forward Def",
+  back_defensive: "Back Def",
+  straight_drive: "Straight Drive",
+  cover_drive: "Cover Drive",
+  leg_glance: "Leg Glance",
+  cut: "Cut",
+  pull: "Pull",
+  hook: "Hook",
+  sweep: "Sweep",
+  on_drive: "On Drive",
+  off_drive: "Off Drive",
 };
 
-/*
-  There is deliberately no client-side risk table for shots. An earlier pass
-  exported one and printed "risk 86%" next to the engine's real odds, which
-  contradicted them: the numbers a shot carries as risk are the engine's
-  business, and duplicating them in TypeScript guarantees they drift. The UI
-  reads its odds from `preview_ball` instead.
-*/
+/**
+ * The original's sprite name, without extension — used to resolve the copied
+ * artwork in `src/assets/cc2014/shots`.
+ */
+export const STROKE_SPRITE: Record<Stroke, string> = {
+  leave: "SHOT_LEAVE",
+  front_defensive: "SHOT_FRDEF",
+  back_defensive: "SHOT_BDEF",
+  straight_drive: "SHOT_STRDRV",
+  cover_drive: "SHOT_CDRIVE",
+  leg_glance: "SHOT_LEGGLANCE",
+  cut: "SHOT_CUT",
+  pull: "SHOT_PULL",
+  hook: "SHOT_HOOK",
+  sweep: "SHOT_SWEEP",
+  on_drive: "SHOT_ONDRIVE",
+  off_drive: "SHOT_DRIVE",
+};
+
+/**
+ * Whether a stroke attacks. Defensive strokes are near-dot balls that rarely
+ * get you out; attacking strokes span the whole outcome range including
+ * dismissal. This is the split visible in the original's commentary data, and
+ * it is what the picker groups on.
+ */
+export function isDefensiveStroke(s: Stroke): boolean {
+  return s === "leave" || s === "front_defensive" || s === "back_defensive";
+}
 
 export interface MatchInput {
   batting_aggression: number;
@@ -201,7 +255,7 @@ export interface MatchInput {
   target_bowler_id: number;
   field_preset: FieldPreset;
   /** `null` lets the engine resolve the ball uninfluenced. */
-  shot_choice: ShotChoice | null;
+  stroke: Stroke | null;
 }
 
 export interface BattingCard {
